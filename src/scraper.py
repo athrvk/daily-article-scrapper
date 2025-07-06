@@ -4,7 +4,7 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 import random
 from urllib.parse import urljoin, urlparse
@@ -157,11 +157,23 @@ class ArticleScraper:
             published = article.get('published', '')
             if published:
                 try:
-                    # Try to parse the date
-                    return datetime.fromisoformat(published.replace('Z', '+00:00'))
-                except:
-                    return datetime.min
-            return datetime.min
+                    # Try to parse the date and normalize timezone
+                    if 'Z' in published:
+                        # Replace Z with +00:00 for UTC
+                        dt = datetime.fromisoformat(published.replace('Z', '+00:00'))
+                    elif '+' in published or published.endswith(('GMT', 'UTC')):
+                        # Already has timezone info
+                        dt = datetime.fromisoformat(published.replace('GMT', '+00:00').replace('UTC', '+00:00'))
+                    else:
+                        # No timezone info, assume UTC
+                        dt = datetime.fromisoformat(published)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                    return dt
+                except Exception as e:
+                    logger.debug(f"Failed to parse date '{published}': {e}")
+                    return datetime.min.replace(tzinfo=timezone.utc)
+            return datetime.min.replace(tzinfo=timezone.utc)
         
         return sorted(articles, key=get_sort_key, reverse=True)
     
