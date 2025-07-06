@@ -48,7 +48,7 @@ jobs:
       
     - name: Upload logs as artifact
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: scraper-logs-${{ github.run_number }}
         path: logs/
@@ -56,7 +56,7 @@ jobs:
         
     - name: Upload JSON backup
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: articles-json-${{ github.run_number }}
         path: articles_*.json
