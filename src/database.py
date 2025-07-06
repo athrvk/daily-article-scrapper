@@ -66,6 +66,12 @@ class DatabaseManager:
             self.client.close()
             logger.info("Disconnected from MongoDB")
     
+    def _serialize_datetime_fields(self, article: Dict[str, Any]) -> None:
+        """Serialize datetime objects to ISO format strings for MongoDB."""
+        for key, value in article.items():
+            if isinstance(value, datetime):
+                article[key] = value.isoformat()
+    
     def save_articles(self, articles: List[Dict[str, Any]]) -> bool:
         """Save articles to MongoDB."""
         if self.collection is None:
@@ -83,7 +89,8 @@ class DatabaseManager:
                     processed_article = dict(article)
                     
                     # Add metadata
-                    processed_article['scraped_at'] = datetime.utcnow()
+                    scraped_at = datetime.utcnow()
+                    processed_article['scraped_at'] = scraped_at
                     
                     # Create safe ID
                     url = str(processed_article.get('url', ''))
@@ -92,7 +99,7 @@ class DatabaseManager:
                         continue
                     
                     url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()[:16]
-                    date_str = processed_article['scraped_at'].strftime('%Y%m%d')
+                    date_str = scraped_at.strftime('%Y%m%d')
                     processed_article['_id'] = f"{url_hash}_{date_str}"
                     
                     # Clean up data types
@@ -100,7 +107,10 @@ class DatabaseManager:
                         processed_article['tags'] = []
                     
                     if 'published' in processed_article and not processed_article['published']:
-                        processed_article['published'] = processed_article['scraped_at'].isoformat()
+                        processed_article['published'] = scraped_at.isoformat()
+                    
+                    # Ensure all datetime objects are serialized for MongoDB
+                    self._serialize_datetime_fields(processed_article)
                     
                     processed_articles.append(processed_article)
                     
@@ -125,10 +135,15 @@ class DatabaseManager:
                 
                 operations = []
                 for article in processed_articles:
+                    # Create a copy for the operation to avoid modifying the original
+                    article_for_db = dict(article)
+                    # Ensure datetime serialization for bulk operations
+                    self._serialize_datetime_fields(article_for_db)
+                    
                     operations.append({
                         'updateOne': {
                             'filter': {'url': article['url']},
-                            'update': {'$set': article},
+                            'update': {'$set': article_for_db},
                             'upsert': True
                         }
                     })
