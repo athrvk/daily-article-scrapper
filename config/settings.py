@@ -37,54 +37,48 @@ class Config:
     
     # RSS feeds configuration - Global current affairs and trending topics
     RSS_FEEDS: Dict[str, str] = {
-        # Global News Sources
+        # Global News Sources (Working)
         'bbc_world': 'http://feeds.bbci.co.uk/news/world/rss.xml',
-        'reuters_world': 'https://feeds.reuters.com/reuters/worldNews',
-        'ap_news': 'https://feeds.apnews.com/apnews/general',
         'guardian_world': 'https://www.theguardian.com/world/rss',
         'al_jazeera': 'https://www.aljazeera.com/xml/rss/all.xml',
         
-        # Technology & Innovation
+        # Technology & Innovation (Working)
         'techcrunch': 'https://techcrunch.com/feed/',
         'wired': 'https://www.wired.com/feed/rss',
         'the_verge': 'https://www.theverge.com/rss/index.xml',
         'ars_technica': 'http://feeds.arstechnica.com/arstechnica/index',
         
-        # Business & Economics
+        # Business & Economics (Working)
         'bloomberg': 'https://feeds.bloomberg.com/markets/news.rss',
         'financial_times': 'https://www.ft.com/rss/home',
-        'economist': 'https://www.economist.com/rss/all.xml',
         'forbes': 'https://www.forbes.com/real-time/feed2/',
         
-        # Science & Health
+        # Science & Health (Working)
         'nature_news': 'https://www.nature.com/nature.rss',
         'scientific_american': 'http://rss.sciam.com/ScientificAmerican-Global',
         'new_scientist': 'https://www.newscientist.com/feed/home/',
         'who_news': 'https://www.who.int/rss-feeds/news-english.xml',
         
-        # Culture & Society
-        'medium_general': 'https://medium.com/feed',
+        # Culture & Society (Working)
         'medium_trending': 'https://medium.com/feed/tag/trending',
         'medium_culture': 'https://medium.com/feed/tag/culture',
         'npr_news': 'https://feeds.npr.org/1001/rss.xml',
         
-        # Regional Perspectives
+        # Regional Perspectives (Working)
         'cnn_international': 'http://rss.cnn.com/rss/edition.rss',
         'dw_english': 'https://rss.dw.com/rdf/rss-en-all',
         'france24': 'https://www.france24.com/en/rss',
         'rt_news': 'https://www.rt.com/rss/news/',
         'china_daily': 'http://www.chinadaily.com.cn/rss/world_rss.xml',
         
-        # Social & Trending
-        'buzzfeed_news': 'https://www.buzzfeednews.com/arc/outboundfeeds/rss/',
+        # Social & Trending (Working)
         'reddit_worldnews': 'https://www.reddit.com/r/worldnews/.rss',
         'hackernews': 'https://hnrss.org/frontpage'
     }
     
-    # Medium publication feeds - Diverse topics and global perspectives
+    # Medium publication feeds - Diverse topics and global perspectives (Working feeds only)
     MEDIUM_PUBLICATIONS: List[str] = [
         'https://towardsdatascience.com/feed',
-        'https://medium.com/feed/@freecodecamp',
         'https://medium.com/feed/hackernoon',
         'https://medium.com/feed/the-startup',
         'https://medium.com/feed/better-programming',
@@ -95,7 +89,5 @@ class Config:
         'https://uxdesign.cc/feed',
         'https://medium.com/feed/swlh',
         'https://medium.com/feed/change-becomes-you',
-        'https://medium.com/feed/politics',
-        'https://medium.com/feed/world-issues',
         'https://medium.com/feed/global-perspectives'
     ]
