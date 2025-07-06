@@ -1,0 +1,63 @@
+name: Daily Article Scraper
+
+on:
+  schedule:
+    # Run daily at 8:00 AM UTC (adjust timezone as needed)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  scrape-articles:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Create logs directory
+      run: mkdir -p logs
+      
+    - name: Run article scraper
+      env:
+        MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
+        MONGODB_COLLECTION: ${{ secrets.MONGODB_COLLECTION }}
+        TARGET_ARTICLE_COUNT: 20
+        LOG_LEVEL: INFO
+        AUTO_CLEANUP_ENABLED: true
+        CLEANUP_MONTHS_OLD: 2
+      run: python main.py
+      
+    - name: Upload logs as artifact
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: scraper-logs-${{ github.run_number }}
+        path: logs/
+        retention-days: 7
+        
+    - name: Upload JSON backup
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: articles-json-${{ github.run_number }}
+        path: articles_*.json
+        retention-days: 30
