@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+import traceback
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from pymongo import MongoClient
@@ -74,48 +75,74 @@ class DatabaseManager:
         try:
             logger.info(f"📝 Preparing to save {len(articles)} articles to MongoDB...")
             
-            # Add metadata to each article and generate safe IDs
-            import hashlib
-            for article in articles:
-                article['scraped_at'] = datetime.utcnow()
-                # Create a safe ID using hash of URL + date instead of the full URL
-                url_hash = hashlib.md5(article['url'].encode()).hexdigest()[:16]
-                date_str = article['scraped_at'].strftime('%Y%m%d')
-                article['_id'] = f"{url_hash}_{date_str}"
+            # Process articles one by one for better error tracking
+            processed_articles = []
+            for i, article in enumerate(articles):
+                try:
+                    # Make a copy to avoid modifying original
+                    processed_article = dict(article)
+                    
+                    # Add metadata
+                    processed_article['scraped_at'] = datetime.utcnow()
+                    
+                    # Create safe ID
+                    url = str(processed_article.get('url', ''))
+                    if not url:
+                        logger.warning(f"Article {i} has no URL, skipping")
+                        continue
+                    
+                    url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()[:16]
+                    date_str = processed_article['scraped_at'].strftime('%Y%m%d')
+                    processed_article['_id'] = f"{url_hash}_{date_str}"
+                    
+                    # Clean up data types
+                    if 'tags' in processed_article and not isinstance(processed_article['tags'], list):
+                        processed_article['tags'] = []
+                    
+                    if 'published' in processed_article and not processed_article['published']:
+                        processed_article['published'] = processed_article['scraped_at'].isoformat()
+                    
+                    processed_articles.append(processed_article)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing article {i}: {type(e).__name__} - {str(e)}")
+                    continue
             
-            # Use upsert to avoid duplicates
-            operations = []
-            for article in articles:
-                operations.append({
-                    'updateOne': {
-                        'filter': {'url': article['url']},
-                        'update': {'$set': article},
-                        'upsert': True
-                    }
-                })
+            logger.info(f"Successfully processed {len(processed_articles)} articles")
             
-            if operations:
-                logger.info(f"🔄 Executing {len(operations)} database operations...")
-                result = self.collection.bulk_write(operations)
+            if not processed_articles:
+                logger.warning("⚠️ No valid articles to save")
+                return False
+            
+            # Use insert_many with ordered=False to continue on errors
+            try:
+                result = self.collection.insert_many(processed_articles, ordered=False)
+                logger.info(f"✅ Inserted {len(result.inserted_ids)} new articles")
+                return True
+            except Exception as insert_error:
+                # If insert_many fails due to duplicates, try upsert approach
+                logger.info("Insert failed, trying upsert approach...")
                 
+                operations = []
+                for article in processed_articles:
+                    operations.append({
+                        'updateOne': {
+                            'filter': {'url': article['url']},
+                            'update': {'$set': article},
+                            'upsert': True
+                        }
+                    })
+                
+                result = self.collection.bulk_write(operations, ordered=False)
                 logger.info(
                     f"✅ Database operations completed: "
-                    f"{result.upserted_count} new articles, "
-                    f"{result.modified_count} updated articles, "
-                    f"{result.matched_count} matched articles"
+                    f"{result.upserted_count} new, {result.modified_count} updated"
                 )
                 return True
-            else:
-                logger.warning("⚠️ No articles to save")
-                return False
                 
-        except OperationFailure as e:
-            logger.error(f"❌ MongoDB operation failed: {type(e).__name__}")
-            logger.error("Check database permissions and data format")
-            return False
         except Exception as e:
-            logger.error(f"❌ Unexpected error saving articles: {type(e).__name__}")
-            logger.error("Verify article data structure and MongoDB connection")
+            logger.error(f"❌ Unexpected error saving articles: {type(e).__name__} - {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
     
     def get_recent_articles(self, days: int = 7, limit: int = 100) -> List[Dict[str, Any]]:
