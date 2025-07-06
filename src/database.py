@@ -1,5 +1,6 @@
 """Database operations for MongoDB."""
 
+import hashlib
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
@@ -73,10 +74,14 @@ class DatabaseManager:
         try:
             logger.info(f"📝 Preparing to save {len(articles)} articles to MongoDB...")
             
-            # Add metadata to each article
+            # Add metadata to each article and generate safe IDs
+            import hashlib
             for article in articles:
                 article['scraped_at'] = datetime.utcnow()
-                article['_id'] = f"{article['url']}_{article['scraped_at'].strftime('%Y%m%d')}"
+                # Create a safe ID using hash of URL + date instead of the full URL
+                url_hash = hashlib.md5(article['url'].encode()).hexdigest()[:16]
+                date_str = article['scraped_at'].strftime('%Y%m%d')
+                article['_id'] = f"{url_hash}_{date_str}"
             
             # Use upsert to avoid duplicates
             operations = []
@@ -105,10 +110,12 @@ class DatabaseManager:
                 return False
                 
         except OperationFailure as e:
-            logger.error(f"❌ MongoDB operation failed: {e}")
+            logger.error(f"❌ MongoDB operation failed: {type(e).__name__}")
+            logger.error("Check database permissions and data format")
             return False
         except Exception as e:
-            logger.error(f"❌ Unexpected error saving articles: {e}")
+            logger.error(f"❌ Unexpected error saving articles: {type(e).__name__}")
+            logger.error("Verify article data structure and MongoDB connection")
             return False
     
     def get_recent_articles(self, days: int = 7, limit: int = 100) -> List[Dict[str, Any]]:
@@ -150,14 +157,16 @@ class DatabaseManager:
             return
         
         try:
-            # Create indexes
-            self.collection.create_index("url", unique=True)
-            self.collection.create_index("scraped_at")
-            self.collection.create_index("source")
-            self.collection.create_index("published")
+            # Create indexes - make URL index unique but handle duplicates gracefully
+            self.collection.create_index("url", unique=True, background=True)
+            self.collection.create_index("scraped_at", background=True)
+            self.collection.create_index("source", background=True)
+            self.collection.create_index("published", background=True)
             logger.info("Database indexes created successfully")
         except Exception as e:
-            logger.error(f"Error creating indexes: {e}")
+            logger.error(f"Error creating indexes: {type(e).__name__}")
+            # Don't fail if indexes already exist or have conflicts
+            logger.info("Continuing without index creation...")
     
     def __enter__(self):
         """Context manager entry."""
