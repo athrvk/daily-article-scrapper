@@ -25,18 +25,37 @@ class DatabaseManager:
     def connect(self) -> bool:
         """Establish connection to MongoDB."""
         try:
-            self.client = MongoClient(self.uri, serverSelectionTimeoutMS=5000)
+            logger.info("🔌 Attempting to connect to MongoDB...")
+            logger.info(f"Database: {self.database_name}, Collection: {self.collection_name}")
+            
+            self.client = MongoClient(
+                self.uri, 
+                serverSelectionTimeoutMS=10000,  # Increased timeout
+                connectTimeoutMS=10000,
+                socketTimeoutMS=10000
+            )
+            
             # Test the connection
+            logger.info("Testing MongoDB connection...")
             self.client.admin.command('ismaster')
+            
             self.database = self.client[self.database_name]
             self.collection = self.database[self.collection_name]
-            logger.info(f"Connected to MongoDB: {self.database_name}")
+            
+            # Verify collection access
+            logger.info("Verifying collection access...")
+            self.collection.count_documents({})
+            
+            logger.info(f"✅ Successfully connected to MongoDB: {self.database_name}.{self.collection_name}")
             return True
+            
         except ConnectionFailure as e:
-            logger.error(f"Failed to connect to MongoDB: {e}")
+            logger.error(f"❌ Failed to connect to MongoDB: Connection error")
+            logger.error("Check MongoDB URI, network connectivity, and authentication")
             return False
         except Exception as e:
-            logger.error(f"Unexpected error connecting to MongoDB: {e}")
+            logger.error(f"❌ Unexpected error connecting to MongoDB: {type(e).__name__}")
+            logger.error("Verify MongoDB configuration and network access")
             return False
     
     def disconnect(self):
@@ -48,10 +67,12 @@ class DatabaseManager:
     def save_articles(self, articles: List[Dict[str, Any]]) -> bool:
         """Save articles to MongoDB."""
         if self.collection is None:
-            logger.error("No database connection available")
+            logger.error("❌ No database connection available")
             return False
         
         try:
+            logger.info(f"📝 Preparing to save {len(articles)} articles to MongoDB...")
+            
             # Add metadata to each article
             for article in articles:
                 article['scraped_at'] = datetime.utcnow()
@@ -69,21 +90,25 @@ class DatabaseManager:
                 })
             
             if operations:
+                logger.info(f"🔄 Executing {len(operations)} database operations...")
                 result = self.collection.bulk_write(operations)
+                
                 logger.info(
-                    f"Saved {result.upserted_count} new articles, "
-                    f"updated {result.modified_count} existing articles"
+                    f"✅ Database operations completed: "
+                    f"{result.upserted_count} new articles, "
+                    f"{result.modified_count} updated articles, "
+                    f"{result.matched_count} matched articles"
                 )
                 return True
             else:
-                logger.warning("No articles to save")
+                logger.warning("⚠️ No articles to save")
                 return False
                 
         except OperationFailure as e:
-            logger.error(f"MongoDB operation failed: {e}")
+            logger.error(f"❌ MongoDB operation failed: {e}")
             return False
         except Exception as e:
-            logger.error(f"Unexpected error saving articles: {e}")
+            logger.error(f"❌ Unexpected error saving articles: {e}")
             return False
     
     def get_recent_articles(self, days: int = 7, limit: int = 100) -> List[Dict[str, Any]]:

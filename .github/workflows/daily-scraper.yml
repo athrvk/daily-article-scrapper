@@ -5,27 +5,53 @@ on:
     # Run daily at 8:00 AM UTC (adjust timezone as needed)
     - cron: '0 8 * * *'
   workflow_dispatch: # Allow manual triggering
+    inputs:
+      target_count:
+        description: 'Number of articles to scrape'
+        required: false
+        default: '50'
+        type: string
+      log_level:
+        description: 'Log level'
+        required: false
+        default: 'INFO'
+        type: choice
+        options:
+          - DEBUG
+          - INFO
+          - WARNING
+          - ERROR
+
+# Prevent concurrent runs
+concurrency:
+  group: article-scraper
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.11'
+  CACHE_VERSION: 'v2'
 
 jobs:
   scrape-articles:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: ${{ env.PYTHON_VERSION }}
         
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-
+          ${{ env.CACHE_VERSION }}-${{ runner.os }}-pip-
           
     - name: Install dependencies
       run: |
@@ -35,29 +61,114 @@ jobs:
     - name: Create logs directory
       run: mkdir -p logs
       
+    - name: Validate environment
+      run: |
+        echo "Python version: $(python --version)"
+        echo "Pip version: $(pip --version)"
+        echo "Dependencies installed:"
+        pip list | grep -E "(requests|beautifulsoup4|pymongo|feedparser|python-dotenv)"
+        
+    - name: Test MongoDB connection
+      env:
+        MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
+        MONGODB_COLLECTION: ${{ secrets.MONGODB_COLLECTION }}
+      run: |
+        echo "🔍 Testing MongoDB connection..."
+        python -c "
+        import os
+        from pymongo import MongoClient
+        from pymongo.errors import ConnectionFailure
+        
+        uri = os.getenv('MONGODB_URI', 'Not set')
+        db_name = os.getenv('MONGODB_DATABASE', 'Not set')
+        collection_name = os.getenv('MONGODB_COLLECTION', 'Not set')
+        
+        # Only show configuration status, not actual values
+        print(f'MongoDB URI: {\"✅ Configured\" if uri and uri != \"Not set\" else \"❌ Not configured\"}')
+        print(f'Database: {db_name}')
+        print(f'Collection: {collection_name}')
+        
+        if uri and uri != 'Not set':
+            try:
+                client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+                client.admin.command('ismaster')
+                db = client[db_name]
+                collection = db[collection_name]
+                collection.count_documents({})
+                print('✅ MongoDB connection test successful')
+                client.close()
+            except ConnectionFailure:
+                print('❌ MongoDB connection failed: Network/Authentication error')
+                print('Check MongoDB URI, credentials, and network connectivity')
+                exit(1)
+            except Exception as e:
+                print(f'❌ MongoDB test failed: {type(e).__name__}')
+                print('Verify database configuration and permissions')
+                exit(1)
+        else:
+            print('❌ MongoDB URI not configured')
+            exit(1)
+        "
+        
     - name: Run article scraper
       env:
         MONGODB_URI: ${{ secrets.MONGODB_URI }}
         MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
         MONGODB_COLLECTION: ${{ secrets.MONGODB_COLLECTION }}
-        TARGET_ARTICLE_COUNT: 20
-        LOG_LEVEL: INFO
+        TARGET_ARTICLE_COUNT: ${{ inputs.target_count || '50' }}
+        LOG_LEVEL: ${{ inputs.log_level || 'INFO' }}
         AUTO_CLEANUP_ENABLED: true
         CLEANUP_MONTHS_OLD: 2
-      run: python main.py
-      
+        RATE_LIMIT_DELAY: 1.5
+        MAX_RETRIES: 3
+      run: |
+        echo "Starting article scraper with TARGET_ARTICLE_COUNT=$TARGET_ARTICLE_COUNT"
+        python main.py
+        
+    - name: Check scraper output
+      if: always()
+      run: |
+        echo "=== Scraper Results ==="
+        if [ -f "articles_$(date +%Y%m%d).json" ]; then
+          echo "✅ JSON backup created: articles_$(date +%Y%m%d).json"
+          echo "📊 Articles scraped: $(jq length articles_$(date +%Y%m%d).json 2>/dev/null || echo 'Unable to count')"
+        else
+          echo "❌ No JSON backup found"
+        fi
+        
+        if [ -f "logs/scraper.log" ]; then
+          echo "📝 Log file size: $(du -h logs/scraper.log | cut -f1)"
+          echo "🔍 Last 10 log entries:"
+          tail -10 logs/scraper.log
+        else
+          echo "❌ No log file found"
+        fi
+        
     - name: Upload logs as artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: scraper-logs-${{ github.run_number }}
+        name: scraper-logs-${{ github.run_number }}-${{ github.run_attempt }}
         path: logs/
-        retention-days: 7
+        retention-days: 14
+        compression-level: 6
         
     - name: Upload JSON backup
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: articles-json-${{ github.run_number }}
+        name: articles-json-${{ github.run_number }}-${{ github.run_attempt }}
         path: articles_*.json
-        retention-days: 30
+        retention-days: 90
+        compression-level: 9
+        
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "🚨 Workflow failed!"
+        echo "Check the logs above for details."
+        echo "Common issues:"
+        echo "- MongoDB connection problems"
+        echo "- RSS feed timeouts"
+        echo "- Network connectivity issues"

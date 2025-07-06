@@ -17,7 +17,7 @@ class Config:
     MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "articles")
     
     # Scraping settings
-    TARGET_ARTICLE_COUNT = int(os.getenv("TARGET_ARTICLE_COUNT", "20"))
+    TARGET_ARTICLE_COUNT = int(os.getenv("TARGET_ARTICLE_COUNT", "50"))
     RATE_LIMIT_DELAY = float(os.getenv("RATE_LIMIT_DELAY", "2"))
     MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
     

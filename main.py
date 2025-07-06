@@ -67,11 +67,44 @@ def cleanup_old_articles():
         # Don't fail the main process if cleanup fails
 
 
+def validate_environment():
+    """Validate required environment variables."""
+    logger.info("🔍 Validating environment configuration...")
+    
+    # Check MongoDB configuration (without exposing sensitive data)
+    has_uri = bool(Config.MONGODB_URI and Config.MONGODB_URI.strip())
+    logger.info(f"MongoDB URI: {'✅ Configured' if has_uri else '❌ Not set'}")
+    logger.info(f"MongoDB Database: {Config.MONGODB_DATABASE}")
+    logger.info(f"MongoDB Collection: {Config.MONGODB_COLLECTION}")
+    logger.info(f"Target Article Count: {Config.TARGET_ARTICLE_COUNT}")
+    logger.info(f"Auto Cleanup Enabled: {Config.AUTO_CLEANUP_ENABLED}")
+    
+    # Validate required settings
+    if not has_uri or Config.MONGODB_URI == "mongodb://localhost:27017/":
+        logger.warning("⚠️ MongoDB URI appears to be default/local - check if production URI is configured")
+    
+    if not Config.MONGODB_DATABASE:
+        logger.error("❌ MongoDB database name not configured")
+        return False
+        
+    if not Config.MONGODB_COLLECTION:
+        logger.error("❌ MongoDB collection name not configured")
+        return False
+    
+    logger.info("✅ Environment validation completed")
+    return True
+
+
 def main():
     """Main function to run the article scraper."""
     setup_logging()
     
-    logger.info("Starting daily article scraping...")
+    logger.info("🚀 Starting daily article scraping...")
+    
+    # Validate environment first
+    if not validate_environment():
+        logger.error("❌ Environment validation failed")
+        sys.exit(1)
     
     try:
         # Run cleanup of old articles first
@@ -94,23 +127,35 @@ def main():
         json_filename = scraper.save_articles_json(articles)
         
         # Save to MongoDB
+        logger.info("💾 Attempting to save articles to MongoDB...")
         with DatabaseManager() as db:
             if db.connect():
+                logger.info("🔗 MongoDB connection established")
+                
                 # Create indexes if they don't exist
+                logger.info("📊 Creating/updating database indexes...")
                 db.create_indexes()
                 
                 # Save articles
+                logger.info(f"💾 Saving {len(articles)} articles to database...")
                 success = db.save_articles(articles)
+                
                 if success:
-                    logger.info("Articles successfully saved to MongoDB")
+                    logger.info("✅ Articles successfully saved to MongoDB")
                     
                     # Print statistics
                     total_count = db.get_article_count()
-                    logger.info(f"Total articles in database: {total_count}")
+                    logger.info(f"📈 Total articles in database: {total_count}")
                 else:
-                    logger.error("Failed to save articles to MongoDB")
+                    logger.error("❌ Failed to save articles to MongoDB")
             else:
-                logger.error("Could not connect to MongoDB, articles saved to JSON only")
+                logger.error("❌ Could not connect to MongoDB - check connection settings")
+                logger.error("📁 Articles saved to JSON backup only")
+                logger.error("🔧 Troubleshooting tips:")
+                logger.error("   - Verify MONGODB_URI is correct")
+                logger.error("   - Check if MongoDB server is accessible")
+                logger.error("   - Ensure network connectivity")
+                logger.error("   - Validate authentication credentials")
         
         # Print URLs for easy access
         print(f"\n{'='*60}")
