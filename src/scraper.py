@@ -10,6 +10,8 @@ import random
 from urllib.parse import urljoin, urlparse
 import logging
 from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 from config.settings import Config
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,7 @@ class ArticleScraper:
         self.session.headers.update({
             'User-Agent': self.config.USER_AGENT
         })
+        self.articles_lock = Lock()  # For thread-safe operations
         
     def get_rss_articles(self, feed_url: str, max_articles: int = 5) -> List[Dict[str, Any]]:
         """Extract articles from RSS feed."""
@@ -98,44 +101,101 @@ class ArticleScraper:
             logger.error(f"Error scraping Medium trending: {str(e)}")
             return []
     
+    def _fetch_rss_feed_safe(self, feed_info: tuple) -> List[Dict[str, Any]]:
+        """Thread-safe wrapper for RSS feed fetching."""
+        feed_name, feed_url, max_articles = feed_info
+        try:
+            logger.info(f"🔄 Fetching {feed_name} in thread...")
+            articles = self.get_rss_articles(feed_url, max_articles)
+            logger.info(f"✅ {feed_name}: Found {len(articles)} articles")
+            
+            # Add a small random delay to avoid overwhelming servers
+            time.sleep(random.uniform(0.5, 1.5))
+            return articles
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing feed {feed_name}: {e}")
+            return []
+    
+    def _fetch_medium_trending_safe(self, max_articles: int) -> List[Dict[str, Any]]:
+        """Thread-safe wrapper for Medium trending scraping."""
+        try:
+            logger.info("🔄 Fetching Medium trending in thread...")
+            articles = self.scrape_medium_trending(max_articles)
+            logger.info(f"✅ Medium trending: Found {len(articles)} articles")
+            return articles
+            
+        except Exception as e:
+            logger.error(f"❌ Error scraping Medium trending: {e}")
+            return []
+
     def scrape_daily_articles(self, target_count: int = None) -> List[Dict[str, Any]]:
-        """Scrape articles from multiple sources."""
+        """Scrape articles from multiple sources using multi-threading."""
         target_count = target_count or self.config.TARGET_ARTICLE_COUNT
         all_articles = []
         
-        # Get articles from RSS feeds
+        logger.info("🚀 Starting multi-threaded article scraping...")
+        
+        # Prepare tasks for thread pool
+        tasks = []
+        
+        # Add RSS feeds to tasks
         for feed_name, feed_url in self.config.RSS_FEEDS.items():
-            try:
-                articles = self.get_rss_articles(feed_url, max_articles=3)
-                all_articles.extend(articles)
-                time.sleep(random.uniform(1, self.config.RATE_LIMIT_DELAY))
-            except Exception as e:
-                logger.error(f"Error processing feed {feed_name}: {e}")
-                continue
+            tasks.append(('rss', feed_name, feed_url, 3))
         
-        # Get articles from Medium publications
-        for pub_feed in self.config.MEDIUM_PUBLICATIONS:
-            try:
-                articles = self.get_rss_articles(pub_feed, max_articles=2)
-                all_articles.extend(articles)
-                time.sleep(random.uniform(1, self.config.RATE_LIMIT_DELAY))
-            except Exception as e:
-                logger.error(f"Error processing Medium publication {pub_feed}: {e}")
-                continue
+        # Add Medium publications to tasks
+        for i, pub_feed in enumerate(self.config.MEDIUM_PUBLICATIONS):
+            feed_name = f"medium_pub_{i+1}"
+            tasks.append(('rss', feed_name, pub_feed, 2))
         
-        # Try to get Medium trending articles
-        try:
-            trending_articles = self.scrape_medium_trending(max_articles=5)
-            all_articles.extend(trending_articles)
-        except Exception as e:
-            logger.error(f"Error scraping Medium trending: {e}")
+        # Add Medium trending as a special task
+        tasks.append(('trending', 'medium_trending', None, 5))
+        
+        # Use ThreadPoolExecutor for concurrent fetching
+        max_workers = min(len(tasks), 5)  # Limit to 5 concurrent threads
+        logger.info(f"📊 Processing {len(tasks)} sources with {max_workers} worker threads")
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_task = {}
+            
+            for task in tasks:
+                task_type, name, url, max_articles = task
+                
+                if task_type == 'rss':
+                    future = executor.submit(self._fetch_rss_feed_safe, (name, url, max_articles))
+                else:  # trending
+                    future = executor.submit(self._fetch_medium_trending_safe, max_articles)
+                
+                future_to_task[future] = (task_type, name)
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_task):
+                task_type, name = future_to_task[future]
+                try:
+                    articles = future.result()
+                    if articles:
+                        with self.articles_lock:
+                            all_articles.extend(articles)
+                        logger.info(f"✅ Completed {name}: Added {len(articles)} articles")
+                    else:
+                        logger.warning(f"⚠️ No articles from {name}")
+                        
+                except Exception as exc:
+                    logger.error(f"❌ {name} generated an exception: {exc}")
+        
+        logger.info(f"🏁 Multi-threaded scraping completed. Total articles collected: {len(all_articles)}")
         
         # Remove duplicates based on URL
         unique_articles = self._remove_duplicates(all_articles)
         
         # Sort by published date (newest first) and limit to target count
         sorted_articles = self._sort_articles(unique_articles)
-        return sorted_articles[:target_count]
+        
+        final_articles = sorted_articles[:target_count]
+        logger.info(f"📋 Final result: {len(final_articles)} unique articles after deduplication and sorting")
+        
+        return final_articles
     
     def _remove_duplicates(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Remove duplicate articles based on URL."""

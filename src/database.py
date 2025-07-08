@@ -124,36 +124,51 @@ class DatabaseManager:
                 logger.warning("⚠️ No valid articles to save")
                 return False
             
-            # Use insert_many with ordered=False to continue on errors
-            try:
-                result = self.collection.insert_many(processed_articles, ordered=False)
-                logger.info(f"✅ Inserted {len(result.inserted_ids)} new articles")
-                return True
-            except Exception as insert_error:
-                # If insert_many fails due to duplicates, try upsert approach
-                logger.info("Insert failed, trying upsert approach...")
-                
-                operations = []
-                for article in processed_articles:
-                    # Create a copy for the operation to avoid modifying the original
-                    article_for_db = dict(article)
-                    # Ensure datetime serialization for bulk operations
-                    self._serialize_datetime_fields(article_for_db)
+            # Save articles one by one with graceful error handling
+            success_count = 0
+            error_count = 0
+            
+            for i, article in enumerate(processed_articles):
+                try:
+                    # Try to insert the article first
+                    self.collection.insert_one(article)
+                    success_count += 1
+                    logger.debug(f"✅ Successfully inserted article {i+1}/{len(processed_articles)}")
                     
-                    operations.append({
-                        'updateOne': {
-                            'filter': {'url': article['url']},
-                            'update': {'$set': article_for_db},
-                            'upsert': True
-                        }
-                    })
-                
-                result = self.collection.bulk_write(operations, ordered=False)
-                logger.info(
-                    f"✅ Database operations completed: "
-                    f"{result.upserted_count} new, {result.modified_count} updated"
-                )
-                return True
+                except Exception as insert_error:
+                    # If insert fails (likely duplicate), try upsert without _id field
+                    try:
+                        # Create a copy without the _id field for upsert
+                        article_for_update = {k: v for k, v in article.items() if k != '_id'}
+                        
+                        result = self.collection.replace_one(
+                            {'url': article['url']},
+                            article_for_update,
+                            upsert=True
+                        )
+                        if result.upserted_id:
+                            success_count += 1
+                            logger.debug(f"✅ Upserted article {i+1}/{len(processed_articles)} (new)")
+                        elif result.modified_count > 0:
+                            success_count += 1
+                            logger.debug(f"✅ Updated article {i+1}/{len(processed_articles)} (existing)")
+                        else:
+                            logger.debug(f"ℹ️ Article {i+1}/{len(processed_articles)} unchanged")
+                            success_count += 1  # Count as success since it exists
+                            
+                    except Exception as upsert_error:
+                        error_count += 1
+                        logger.warning(
+                            f"⚠️ Failed to save article {i+1}/{len(processed_articles)}: "
+                            f"{type(upsert_error).__name__} - {str(upsert_error)}"
+                        )
+                        logger.debug(f"Article URL: {article.get('url', 'N/A')}")
+                        continue
+            
+            logger.info(f"✅ Database operations completed: {success_count} successful, {error_count} failed")
+            
+            # Return True if we saved at least some articles
+            return success_count > 0
                 
         except Exception as e:
             logger.error(f"❌ Unexpected error saving articles: {type(e).__name__} - {str(e)}")
