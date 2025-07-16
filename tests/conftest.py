@@ -32,7 +32,8 @@ def sample_articles():
             'published': '2025-01-01T12:00:00',
             'summary': 'Test summary 1',
             'source': 'example.com',
-            'tags': ['tech']
+            'tags': ['tech'],
+            'image': 'https://example.com/image1.jpg'
         },
         {
             'title': 'Test Article 2',
@@ -40,7 +41,8 @@ def sample_articles():
             'published': '2025-01-01T13:00:00',
             'summary': 'Test summary 2',
             'source': 'example.com',
-            'tags': ['ai']
+            'tags': ['ai'],
+            'image': 'https://example.com/image2.jpg'
         }
     ]
 

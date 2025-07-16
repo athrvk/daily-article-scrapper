@@ -57,6 +57,41 @@ class TestArticleScraper:
         assert len(articles) == 1
         assert articles[0]['title'] == 'Test Article'
         assert articles[0]['url'] == 'https://example.com/test'
+        assert 'image' in articles[0]  # Ensure image field is present
+    
+    def test_extract_image_from_html(self, scraper):
+        """Test image extraction from HTML content."""
+        html_content = '<p>Some text</p><img src="https://example.com/test.jpg" alt="test"><p>More text</p>'
+        image_url = scraper._extract_image_from_html(html_content)
+        assert image_url == 'https://example.com/test.jpg'
+        
+        # Test with no image
+        html_no_image = '<p>Some text without images</p>'
+        image_url = scraper._extract_image_from_html(html_no_image)
+        assert image_url == ''
+    
+    def test_extract_image_from_rss_entry(self, scraper):
+        """Test image extraction from RSS entry."""
+        # Mock RSS entry with media content
+        mock_entry = Mock()
+        mock_media = Mock()
+        mock_media.url = 'https://example.com/media.jpg'
+        mock_entry.media_content = [mock_media]
+        
+        image_url = scraper._extract_image_from_rss_entry(mock_entry)
+        assert image_url == 'https://example.com/media.jpg'
+        
+        # Test entry with no image data
+        empty_entry = Mock()
+        empty_entry.media_content = []
+        empty_entry.media_thumbnail = []
+        empty_entry.enclosures = []
+        empty_entry.links = []
+        empty_entry.summary = 'No images here'
+        empty_entry.content = []
+        
+        image_url = scraper._extract_image_from_rss_entry(empty_entry)
+        assert image_url == ''
     
     @patch('src.scraper.time.sleep')
     @patch.object(ArticleScraper, 'get_rss_articles')
@@ -69,4 +104,7 @@ class TestArticleScraper:
         articles = scraper.scrape_daily_articles(target_count=5)
         
         assert len(articles) > 0
+        # Verify image field is present in results
+        for article in articles:
+            assert 'image' in article
         mock_sleep.assert_called()  # Ensure rate limiting is applied
