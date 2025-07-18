@@ -230,8 +230,157 @@ class ArticleScraper:
             logger.error(f"❌ Error scraping Medium trending: {e}")
             return []
 
+    def scrape_inshorts_articles(
+        self, categories: List[str] = None, max_articles_per_category: int = None
+    ) -> List[Dict[str, Any]]:
+        """Scrape articles from InShorts API."""
+        if categories is None:
+            categories = list(self.config.INSHORTS_CATEGORIES.keys())
+
+        all_articles = []
+
+        for category in categories:
+            try:
+                category_config = self.config.INSHORTS_CATEGORIES.get(category, {"max_limit": 5})
+                max_limit = max_articles_per_category or category_config["max_limit"]
+
+                logger.info(f"Fetching InShorts articles for category: {category}")
+                articles = self._fetch_inshorts_category(category, max_limit)
+
+                if articles:
+                    all_articles.extend(articles)
+                    logger.info(f"Retrieved {len(articles)} articles from InShorts {category}")
+                else:
+                    logger.warning(f"No articles found for InShorts {category}")
+
+                # Add delay between category requests to be respectful
+                time.sleep(self.config.RATE_LIMIT_DELAY)
+
+            except Exception as e:
+                logger.error(f"Error fetching InShorts {category}: {str(e)}")
+                continue
+
+        logger.info(f"Total InShorts articles retrieved: {len(all_articles)}")
+        return all_articles
+
+    def _fetch_inshorts_category(
+        self, category: str, max_limit: int, news_offset: str = None
+    ) -> List[Dict[str, Any]]:
+        """Fetch articles from a specific InShorts category."""
+        try:
+            # Build API URL
+            url = f"{self.config.INSHORTS_API_BASE_URL}/news"
+            params = {"category": category, "max_limit": max_limit, "include_card_data": "true"}
+
+            if news_offset:
+                params["news_offset"] = news_offset
+
+            # Make request with proper headers
+            response = self.session.get(
+                url, params=params, headers=self.config.INSHORTS_HEADERS, timeout=10
+            )
+            response.raise_for_status()
+
+            # Parse JSON response
+            data = response.json()
+
+            # Extract articles from response
+            articles = []
+            if "data" in data and "news_list" in data["data"]:
+                for item in data["data"]["news_list"]:
+                    article = self._parse_inshorts_article(item, category)
+                    if article:
+                        articles.append(article)
+
+            return articles
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error fetching InShorts {category}: {str(e)}")
+            return []
+        except ValueError as e:
+            logger.error(f"JSON parsing error for InShorts {category}: {str(e)}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching InShorts {category}: {str(e)}")
+            return []
+
+    def _parse_inshorts_article(self, item: Dict[str, Any], category: str) -> Dict[str, Any]:
+        """Parse a single InShorts article from API response."""
+        try:
+            # Extract article data
+            article = {
+                "title": item.get("title", ""),
+                "url": item.get("source_url", ""),
+                "published": item.get("created_at", ""),
+                "summary": item.get("content", ""),
+                "source": "inshorts.com",
+                "tags": item.get("tags", []) + [category],
+                "image": item.get("image_url", ""),
+                "inshorts_id": item.get("hash_id", ""),
+                "original_source": item.get("source_name", ""),
+            }
+
+            # Validate required fields
+            if not article["title"] or not article["url"]:
+                logger.warning(f"Invalid InShorts article: missing title or URL")
+                return None
+
+            # Convert timestamp if needed
+            if article["published"]:
+                try:
+                    # InShorts typically uses ISO format
+                    if "T" in article["published"]:
+                        dt = datetime.fromisoformat(article["published"].replace("Z", "+00:00"))
+                        article["published"] = dt.isoformat()
+                except Exception as e:
+                    logger.debug(f"Could not parse InShorts timestamp: {e}")
+                    article["published"] = datetime.now().isoformat()
+            else:
+                article["published"] = datetime.now().isoformat()
+
+            return article
+
+        except Exception as e:
+            logger.error(f"Error parsing InShorts article: {str(e)}")
+            return None
+
+    def get_inshorts_trending_topics(self) -> List[str]:
+        """Get trending topics from InShorts API."""
+        try:
+            url = f"{self.config.INSHORTS_API_BASE_URL}/search/trending_topics"
+
+            response = self.session.get(url, headers=self.config.INSHORTS_HEADERS, timeout=10)
+            response.raise_for_status()
+
+            data = response.json()
+
+            # Extract trending topics (structure may vary)
+            topics = []
+            if "data" in data and "topics" in data["data"]:
+                topics = [topic.get("name", "") for topic in data["data"]["topics"]]
+            elif "trending_topics" in data:
+                topics = data["trending_topics"]
+
+            logger.info(f"Retrieved {len(topics)} trending topics from InShorts")
+            return topics
+
+        except Exception as e:
+            logger.error(f"Error fetching InShorts trending topics: {str(e)}")
+            return []
+
+    def _fetch_inshorts_safe(self, categories: List[str]) -> List[Dict[str, Any]]:
+        """Thread-safe wrapper for InShorts API scraping."""
+        try:
+            logger.info("🔄 Fetching InShorts articles in thread...")
+            articles = self.scrape_inshorts_articles(categories)
+            logger.info(f"✅ InShorts: Found {len(articles)} articles")
+            return articles
+
+        except Exception as e:
+            logger.error(f"❌ Error scraping InShorts: {e}")
+            return []
+
     def scrape_daily_articles(self, target_count: int = None) -> List[Dict[str, Any]]:
-        """Scrape articles from multiple sources using multi-threading."""
         target_count = target_count or self.config.TARGET_ARTICLE_COUNT
         all_articles = []
 
@@ -252,6 +401,10 @@ class ArticleScraper:
         # Add Medium trending as a special task
         tasks.append(("trending", "medium_trending", None, 5))
 
+        # Add InShorts API as a special task
+        inshorts_categories = ["top_stories", "trending", "business", "technology"]
+        tasks.append(("inshorts", "inshorts_api", inshorts_categories, None))
+
         # Use ThreadPoolExecutor for concurrent fetching
         max_workers = min(len(tasks), 5)  # Limit to 5 concurrent threads
         logger.info(f"📊 Processing {len(tasks)} sources with {max_workers} worker threads")
@@ -261,12 +414,18 @@ class ArticleScraper:
             future_to_task = {}
 
             for task in tasks:
-                task_type, name, url, max_articles = task
+                task_type, name, url_or_data, max_articles = task
 
                 if task_type == "rss":
-                    future = executor.submit(self._fetch_rss_feed_safe, (name, url, max_articles))
-                else:  # trending
+                    future = executor.submit(
+                        self._fetch_rss_feed_safe, (name, url_or_data, max_articles)
+                    )
+                elif task_type == "trending":
                     future = executor.submit(self._fetch_medium_trending_safe, max_articles)
+                elif task_type == "inshorts":
+                    future = executor.submit(self._fetch_inshorts_safe, url_or_data)
+                else:
+                    continue
 
                 future_to_task[future] = (task_type, name)
 
