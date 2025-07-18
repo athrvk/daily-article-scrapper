@@ -19,6 +19,15 @@ def mock_config():
     config.TARGET_ARTICLE_COUNT = 5
     config.RATE_LIMIT_DELAY = 0.1
     config.USER_AGENT = 'Test Agent'
+    config.INSHORTS_API_BASE_URL = 'https://inshorts.com/api/en'
+    config.INSHORTS_CATEGORIES = {
+        'top_stories': {'max_limit': 10, 'priority': 1},
+        'trending': {'max_limit': 8, 'priority': 2}
+    }
+    config.INSHORTS_HEADERS = {
+        'accept': '*/*',
+        'user-agent': 'Test Agent'
+    }
     return config
 
 

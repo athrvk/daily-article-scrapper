@@ -1,6 +1,7 @@
 """Tests for the article scraper module."""
 
 import pytest
+import requests
 from unittest.mock import Mock, patch
 from src.scraper import ArticleScraper
 
@@ -96,10 +97,20 @@ class TestArticleScraper:
     @patch('src.scraper.time.sleep')
     @patch.object(ArticleScraper, 'get_rss_articles')
     @patch.object(ArticleScraper, 'scrape_medium_trending')
-    def test_scrape_daily_articles(self, mock_trending, mock_rss, mock_sleep, scraper, sample_articles):
+    @patch.object(ArticleScraper, 'scrape_inshorts_articles')
+    def test_scrape_daily_articles(self, mock_inshorts, mock_trending, mock_rss, mock_sleep, scraper, sample_articles):
         """Test daily article scraping."""
         mock_rss.return_value = [sample_articles[0]]
         mock_trending.return_value = [sample_articles[1]]
+        mock_inshorts.return_value = [{
+            'title': 'InShorts Test Article',
+            'url': 'https://example.com/inshorts-test',
+            'published': '2025-01-01T00:00:00Z',
+            'summary': 'Test summary from InShorts',
+            'source': 'inshorts.com',
+            'tags': ['test', 'trending'],
+            'image': 'https://example.com/image.jpg'
+        }]
         
         articles = scraper.scrape_daily_articles(target_count=5)
         
@@ -108,3 +119,132 @@ class TestArticleScraper:
         for article in articles:
             assert 'image' in article
         mock_sleep.assert_called()  # Ensure rate limiting is applied
+        mock_inshorts.assert_called_once()  # Ensure InShorts was called
+    
+    @patch('src.scraper.requests.Session.get')
+    def test_scrape_inshorts_articles(self, mock_get, scraper):
+        """Test InShorts API scraping."""
+        # Mock successful API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            'data': {
+                'news_list': [
+                    {
+                        'hash_id': 'test-hash-1',
+                        'title': 'Test InShorts Article',
+                        'content': 'Test content from InShorts',
+                        'source_name': 'Test Source',
+                        'source_url': 'https://example.com/test',
+                        'image_url': 'https://example.com/image.jpg',
+                        'created_at': '2025-01-01T00:00:00Z',
+                        'tags': ['test']
+                    }
+                ]
+            }
+        }
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+        
+        articles = scraper.scrape_inshorts_articles(['top_stories'])
+        
+        assert len(articles) == 1
+        assert articles[0]['title'] == 'Test InShorts Article'
+        assert articles[0]['source'] == 'inshorts.com'
+        assert articles[0]['inshorts_id'] == 'test-hash-1'
+        assert articles[0]['original_source'] == 'Test Source'
+        assert 'image' in articles[0]
+        mock_get.assert_called()
+    
+    @patch('src.scraper.requests.Session.get')
+    def test_fetch_inshorts_category_error_handling(self, mock_get, scraper):
+        """Test InShorts API error handling."""
+        # Mock network error
+        mock_get.side_effect = requests.exceptions.RequestException("Network error")
+        
+        articles = scraper._fetch_inshorts_category('top_stories', 5)
+        
+        assert articles == []
+        mock_get.assert_called()
+    
+    @patch('src.scraper.requests.Session.get')
+    def test_fetch_inshorts_category_invalid_json(self, mock_get, scraper):
+        """Test InShorts API invalid JSON handling."""
+        # Mock invalid JSON response
+        mock_response = Mock()
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+        
+        articles = scraper._fetch_inshorts_category('top_stories', 5)
+        
+        assert articles == []
+        mock_get.assert_called()
+    
+    def test_parse_inshorts_article(self, scraper):
+        """Test parsing of InShorts article data."""
+        item = {
+            'hash_id': 'test-hash',
+            'title': 'Test Article',
+            'content': 'Test content',
+            'source_name': 'Test Source',
+            'source_url': 'https://example.com/test',
+            'image_url': 'https://example.com/image.jpg',
+            'created_at': '2025-01-01T00:00:00Z',
+            'tags': ['test', 'news']
+        }
+        
+        article = scraper._parse_inshorts_article(item, 'top_stories')
+        
+        assert article['title'] == 'Test Article'
+        assert article['source'] == 'inshorts.com'
+        assert article['inshorts_id'] == 'test-hash'
+        assert article['original_source'] == 'Test Source'
+        assert 'top_stories' in article['tags']
+        assert 'test' in article['tags']
+    
+    def test_parse_inshorts_article_missing_fields(self, scraper):
+        """Test parsing of InShorts article with missing fields."""
+        item = {
+            'hash_id': 'test-hash'
+            # Missing title and url
+        }
+        
+        article = scraper._parse_inshorts_article(item, 'top_stories')
+        
+        assert article is None  # Should return None for invalid articles
+    
+    @patch('src.scraper.requests.Session.get')
+    def test_get_inshorts_trending_topics(self, mock_get, scraper):
+        """Test getting trending topics from InShorts."""
+        # Mock successful API response
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            'data': {
+                'topics': [
+                    {'name': 'Technology'},
+                    {'name': 'Business'},
+                    {'name': 'Science'}
+                ]
+            }
+        }
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+        
+        topics = scraper.get_inshorts_trending_topics()
+        
+        assert len(topics) == 3
+        assert 'Technology' in topics
+        assert 'Business' in topics
+        assert 'Science' in topics
+        mock_get.assert_called_once()
+    
+    @patch('src.scraper.requests.Session.get')
+    def test_get_inshorts_trending_topics_error(self, mock_get, scraper):
+        """Test trending topics error handling."""
+        # Mock network error
+        mock_get.side_effect = requests.exceptions.RequestException("Network error")
+        
+        topics = scraper.get_inshorts_trending_topics()
+        
+        assert topics == []
+        mock_get.assert_called_once()
