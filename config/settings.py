@@ -35,14 +35,19 @@ class Config:
         "(KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
     )
 
-    # InShorts API configuration
+    # InShorts API configuration - Prioritized for better image coverage
     INSHORTS_API_BASE_URL = "https://inshorts.com/api/en"
     INSHORTS_CATEGORIES = {
-        "top_stories": {"max_limit": 10, "priority": 1},
-        "trending": {"max_limit": 8, "priority": 2},
-        "business": {"max_limit": 5, "priority": 3},
-        "technology": {"max_limit": 5, "priority": 4},
-        "world": {"max_limit": 5, "priority": 5},
+        "top_stories": {"max_limit": 15, "priority": 1},
+        "trending": {"max_limit": 12, "priority": 2},
+        "business": {"max_limit": 8, "priority": 3},
+        "technology": {"max_limit": 8, "priority": 4},
+        "world": {"max_limit": 8, "priority": 5},
+        "sports": {"max_limit": 6, "priority": 6},
+        "entertainment": {"max_limit": 6, "priority": 7},
+        "science": {"max_limit": 5, "priority": 8},
+        "automobile": {"max_limit": 4, "priority": 9},
+        "politics": {"max_limit": 6, "priority": 10},
     }
 
     # Headers for InShorts API to avoid bot detection
