@@ -28,7 +28,7 @@ class ArticleScraper:
         self.articles_lock = Lock()  # For thread-safe operations
 
     def _extract_image_from_rss_entry(self, entry) -> str:
-        """Extract image URL from RSS entry."""
+        """Extract image URL from RSS entry with enhanced fallback mechanisms."""
         try:
             # Try different common image sources in RSS feeds
 
@@ -36,41 +36,69 @@ class ArticleScraper:
             if hasattr(entry, "media_content") and entry.media_content:
                 for media in entry.media_content:
                     if hasattr(media, "url") and media.url:
-                        return media.url
+                        if self._is_valid_image_url(media.url):
+                            return media.url
 
             # 2. Check for media:thumbnail
             if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
                 for thumb in entry.media_thumbnail:
                     if hasattr(thumb, "url") and thumb.url:
-                        return thumb.url
+                        if self._is_valid_image_url(thumb.url):
+                            return thumb.url
 
             # 3. Check enclosures for images
             if hasattr(entry, "enclosures") and entry.enclosures:
                 for enclosure in entry.enclosures:
                     if hasattr(enclosure, "type") and hasattr(enclosure, "href"):
                         if enclosure.type and enclosure.type.startswith("image/"):
-                            return enclosure.href
+                            if self._is_valid_image_url(enclosure.href):
+                                return enclosure.href
 
             # 4. Check links for image attachments
             if hasattr(entry, "links") and entry.links:
                 for link in entry.links:
                     if hasattr(link, "type") and hasattr(link, "href"):
                         if link.type and link.type.startswith("image/"):
-                            return link.href
+                            if self._is_valid_image_url(link.href):
+                                return link.href
 
-            # 5. Parse summary/description for img tags
+            # 5. Check custom RSS image fields (common extensions)
+            image_fields = ['image', 'featured_image', 'thumbnail', 'img', 'picture']
+            for field in image_fields:
+                if hasattr(entry, field):
+                    img_value = getattr(entry, field)
+                    if isinstance(img_value, str) and img_value.strip():
+                        if self._is_valid_image_url(img_value):
+                            return img_value
+                    elif hasattr(img_value, 'href') and img_value.href:
+                        if self._is_valid_image_url(img_value.href):
+                            return img_value.href
+
+            # 6. Parse summary/description for img tags
             if hasattr(entry, "summary") and entry.summary:
                 img_url = self._extract_image_from_html(entry.summary)
                 if img_url:
                     return img_url
 
-            # 6. Parse content for img tags
+            # 7. Parse content for img tags
             if hasattr(entry, "content") and entry.content:
                 for content_item in entry.content:
                     if hasattr(content_item, "value"):
                         img_url = self._extract_image_from_html(content_item.value)
                         if img_url:
                             return img_url
+
+            # 8. Parse description for img tags (fallback)
+            if hasattr(entry, "description") and entry.description:
+                img_url = self._extract_image_from_html(entry.description)
+                if img_url:
+                    return img_url
+
+            # 9. Try to extract from Open Graph or Twitter meta tags in the link
+            if hasattr(entry, "link") and entry.link:
+                img_url = self._extract_image_from_webpage(entry.link)
+                if img_url:
+                    return img_url
 
             return ""  # Return empty string if no image found
 
@@ -79,41 +107,195 @@ class ArticleScraper:
             return ""
 
     def _extract_image_from_html(self, html_content: str) -> str:
-        """Extract first image URL from HTML content."""
+        """Extract first image URL from HTML content with improved parsing."""
         try:
             soup = BeautifulSoup(html_content, "html.parser")
-            img_tag = soup.find("img")
-            if img_tag and img_tag.get("src"):
-                return img_tag["src"]
+            
+            # Look for img tags with various attributes
+            img_tags = soup.find_all("img")
+            for img_tag in img_tags:
+                # Check src attribute
+                if img_tag.get("src"):
+                    img_url = img_tag["src"]
+                    if self._is_valid_image_url(img_url):
+                        return self._normalize_image_url(img_url)
+                
+                # Check data-src for lazy loading images
+                if img_tag.get("data-src"):
+                    img_url = img_tag["data-src"]
+                    if self._is_valid_image_url(img_url):
+                        return self._normalize_image_url(img_url)
+                
+                # Check srcset for responsive images
+                if img_tag.get("srcset"):
+                    srcset = img_tag["srcset"]
+                    # Extract the first URL from srcset
+                    urls = srcset.split(',')
+                    if urls:
+                        first_url = urls[0].strip().split(' ')[0]
+                        if self._is_valid_image_url(first_url):
+                            return self._normalize_image_url(first_url)
+            
             return ""
         except Exception as e:
             logger.debug(f"Error extracting image from HTML: {e}")
             return ""
 
+    def _is_valid_image_url(self, url: str) -> bool:
+        """Validate if URL is likely to be a valid image URL."""
+        if not url or not isinstance(url, str):
+            return False
+        
+        url = url.strip()
+        if not url:
+            return False
+        
+        # Must be HTTP/HTTPS or protocol-relative
+        if not (url.startswith('http://') or url.startswith('https://') or url.startswith('//')):
+            return False
+        
+        # Skip common non-image extensions
+        skip_extensions = ['.pdf', '.doc', '.docx', '.zip', '.mp4', '.avi', '.mp3']
+        if any(url.lower().endswith(ext) for ext in skip_extensions):
+            return False
+        
+        # Skip obviously invalid URLs (but allow example.com for testing)
+        if any(invalid in url.lower() for invalid in ['localhost', '127.0.0.1']):
+            return False
+        
+        # Skip too short URLs
+        if len(url) < 10:
+            return False
+        
+        return True
+
+    def _normalize_image_url(self, url: str) -> str:
+        """Normalize image URL to ensure it's properly formatted."""
+        if not url:
+            return ""
+        
+        url = url.strip()
+        
+        # Handle protocol-relative URLs
+        if url.startswith('//'):
+            url = 'https:' + url
+        
+        # Handle relative URLs (this is basic, may need domain context)
+        if url.startswith('/') and not url.startswith('//'):
+            # For now, skip relative URLs as we don't have base domain context
+            return ""
+        
+        return url
+
+    def _extract_image_from_webpage(self, page_url: str) -> str:
+        """Extract image from webpage meta tags (Open Graph, Twitter Cards)."""
+        try:
+            # Only try this for a subset of URLs to avoid too many requests
+            if not page_url or len(page_url) > 200:
+                return ""
+            
+            # Skip if URL seems invalid
+            if not (page_url.startswith('http://') or page_url.startswith('https://')):
+                return ""
+            
+            # Quick check for common news domains that are likely to have meta tags
+            trusted_domains = ['bbc.com', 'cnn.com', 'reuters.com', 'bloomberg.com', 
+                              'techcrunch.com', 'theverge.com', 'wired.com', 'forbes.com']
+            
+            if not any(domain in page_url.lower() for domain in trusted_domains):
+                return ""
+            
+            response = self.session.get(page_url, timeout=5, headers={'User-Agent': self.config.USER_AGENT})
+            if response.status_code != 200:
+                return ""
+            
+            soup = BeautifulSoup(response.content, "html.parser")
+            
+            # Check Open Graph image
+            og_image = soup.find("meta", property="og:image")
+            if og_image and og_image.get("content"):
+                img_url = og_image["content"]
+                if self._is_valid_image_url(img_url):
+                    return self._normalize_image_url(img_url)
+            
+            # Check Twitter Card image
+            twitter_image = soup.find("meta", attrs={"name": "twitter:image"})
+            if twitter_image and twitter_image.get("content"):
+                img_url = twitter_image["content"]
+                if self._is_valid_image_url(img_url):
+                    return self._normalize_image_url(img_url)
+            
+            # Check for article featured image meta tags
+            featured_meta = soup.find("meta", attrs={"name": "featured-image"})
+            if featured_meta and featured_meta.get("content"):
+                img_url = featured_meta["content"]
+                if self._is_valid_image_url(img_url):
+                    return self._normalize_image_url(img_url)
+            
+            return ""
+            
+        except Exception as e:
+            logger.debug(f"Error extracting image from webpage {page_url}: {e}")
+            return ""
+
     def _extract_medium_image(self, link_element) -> str:
-        """Extract image URL from Medium article link context."""
+        """Extract image URL from Medium article link context with enhanced methods."""
         try:
             # Look for nearby img elements in the same container
             parent = link_element.parent
             if parent:
-                # Look for img tags in the parent container
-                img = parent.find("img")
-                if img and img.get("src"):
-                    src = img["src"]
-                    # Medium images often have query parameters, clean them if needed
-                    if src and ("medium.com" in src or src.startswith("http")):
-                        return src
-
+                # Look for img tags in the parent container and siblings
+                for container in [parent, parent.parent] if parent.parent else [parent]:
+                    if not container:
+                        continue
+                    
+                    # Look for img tags in the container
+                    img = container.find("img")
+                    if img:
+                        # Check src attribute
+                        if img.get("src"):
+                            src = img["src"]
+                            if self._is_valid_image_url(src):
+                                return self._normalize_image_url(src)
+                        
+                        # Check data-src for lazy loading
+                        if img.get("data-src"):
+                            src = img["data-src"]
+                            if self._is_valid_image_url(src):
+                                return self._normalize_image_url(src)
+                        
+                        # Check srcset
+                        if img.get("srcset"):
+                            srcset = img["srcset"]
+                            urls = srcset.split(',')
+                            if urls:
+                                first_url = urls[0].strip().split(' ')[0]
+                                if self._is_valid_image_url(first_url):
+                                    return self._normalize_image_url(first_url)
+                
                 # Look for background images in style attributes
-                for element in parent.find_all(["div", "span"], style=True):
+                for element in container.find_all(["div", "span", "section", "article"], style=True):
                     style = element.get("style", "")
                     if "background-image" in style:
                         # Extract URL from background-image: url(...)
                         import re
-
                         match = re.search(r'url\(["\']?(.*?)["\']?\)', style)
                         if match:
-                            return match.group(1)
+                            img_url = match.group(1)
+                            if self._is_valid_image_url(img_url):
+                                return self._normalize_image_url(img_url)
+                
+                # Look for picture elements (responsive images)
+                picture = container.find("picture")
+                if picture:
+                    source = picture.find("source")
+                    if source and source.get("srcset"):
+                        srcset = source["srcset"]
+                        urls = srcset.split(',')
+                        if urls:
+                            first_url = urls[0].strip().split(' ')[0]
+                            if self._is_valid_image_url(first_url):
+                                return self._normalize_image_url(first_url)
 
             return ""
         except Exception as e:
@@ -135,12 +317,12 @@ class ArticleScraper:
                 image_url = self._extract_image_from_rss_entry(entry)
 
                 article = {
-                    "title": entry.get("title", "No Title"),
-                    "url": entry.get("link", ""),
-                    "published": entry.get("published", ""),
-                    "summary": entry.get("summary", ""),
+                    "title": getattr(entry, 'title', entry.get("title", "No Title") if hasattr(entry, 'get') else "No Title"),
+                    "url": getattr(entry, 'link', entry.get("link", "") if hasattr(entry, 'get') else ""),
+                    "published": getattr(entry, 'published', entry.get("published", "") if hasattr(entry, 'get') else ""),
+                    "summary": getattr(entry, 'summary', entry.get("summary", "") if hasattr(entry, 'get') else ""),
                     "source": urlparse(feed_url).netloc,
-                    "tags": [tag.term for tag in entry.get("tags", [])],
+                    "tags": [tag.term for tag in getattr(entry, 'tags', entry.get("tags", []) if hasattr(entry, 'get') else [])],
                     "image": image_url,
                 }
                 articles.append(article)
@@ -380,7 +562,66 @@ class ArticleScraper:
             logger.error(f"❌ Error scraping InShorts: {e}")
             return []
 
-    def scrape_daily_articles(self, target_count: int = None) -> List[Dict[str, Any]]:
+    def _enhance_articles_with_images(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Post-process articles to ensure maximum image coverage."""
+        enhanced_articles = []
+        articles_without_images = []
+        
+        # Separate articles with and without images
+        for article in articles:
+            if article.get('image', '').strip():
+                enhanced_articles.append(article)
+            else:
+                articles_without_images.append(article)
+        
+        logger.info(f"Articles with images: {len(enhanced_articles)}, without images: {len(articles_without_images)}")
+        
+        # Try to get images for articles without them
+        for article in articles_without_images:
+            enhanced_article = article.copy()
+            
+            # Try to extract image from the article URL
+            if article.get('url'):
+                try:
+                    img_url = self._extract_image_from_webpage(article['url'])
+                    if img_url:
+                        enhanced_article['image'] = img_url
+                        logger.debug(f"Found image for article: {article['title'][:50]}...")
+                    else:
+                        # As a last resort, try to find a generic image based on source or tags
+                        enhanced_article['image'] = self._get_fallback_image(article)
+                        
+                except Exception as e:
+                    logger.debug(f"Could not fetch image for {article['url']}: {e}")
+                    # Set a fallback image
+                    enhanced_article['image'] = self._get_fallback_image(article)
+            else:
+                enhanced_article['image'] = self._get_fallback_image(article)
+            
+            enhanced_articles.append(enhanced_article)
+            
+            # Add small delay to avoid overwhelming servers
+            time.sleep(0.1)
+        
+        final_with_images = sum(1 for article in enhanced_articles if article.get('image', '').strip())
+        percentage = (final_with_images / len(enhanced_articles)) * 100 if enhanced_articles else 0
+        logger.info(f"Final image coverage: {final_with_images}/{len(enhanced_articles)} articles ({percentage:.1f}%)")
+        
+        return enhanced_articles
+
+    def _get_fallback_image(self, article: Dict[str, Any]) -> str:
+        """Generate a fallback image URL based on article metadata."""
+        # For now, return empty string. In production, this could:
+        # 1. Use a placeholder service like https://via.placeholder.com/
+        # 2. Use source-specific default images
+        # 3. Use category-based stock images
+        
+        # Example placeholder (commented out to avoid external dependencies):
+        # source = article.get('source', 'news').replace('.com', '').replace('.', '')
+        # title_hash = hash(article.get('title', '')) % 10
+        # return f"https://via.placeholder.com/400x300/4a90e2/ffffff?text={source.upper()}"
+        
+        return ""
         target_count = target_count or self.config.TARGET_ARTICLE_COUNT
         all_articles = []
 
@@ -401,8 +642,11 @@ class ArticleScraper:
         # Add Medium trending as a special task
         tasks.append(("trending", "medium_trending", None, 5))
 
-        # Add InShorts API as a special task
-        inshorts_categories = ["top_stories", "trending", "business", "technology"]
+        # Add InShorts API as the highest priority task with more categories
+        inshorts_categories = [
+            "top_stories", "trending", "business", "technology", "world",
+            "sports", "entertainment", "science", "automobile", "politics"
+        ]
         tasks.append(("inshorts", "inshorts_api", inshorts_categories, None))
 
         # Use ThreadPoolExecutor for concurrent fetching
@@ -455,11 +699,15 @@ class ArticleScraper:
         sorted_articles = self._sort_articles(unique_articles)
 
         final_articles = sorted_articles[:target_count]
+        
+        # Enhance articles with better image coverage
+        enhanced_articles = self._enhance_articles_with_images(final_articles)
+        
         logger.info(
-            f"📋 Final result: {len(final_articles)} unique articles after deduplication and sorting"
+            f"📋 Final result: {len(enhanced_articles)} unique articles after deduplication, sorting, and image enhancement"
         )
 
-        return final_articles
+        return enhanced_articles
 
     def _remove_duplicates(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Remove duplicate articles based on URL."""
