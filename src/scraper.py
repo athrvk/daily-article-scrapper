@@ -646,8 +646,7 @@ class ArticleScraper:
 
         # Add InShorts API as the highest priority task with more categories
         inshorts_categories = [
-            "top_stories", "trending", "business", "technology", "world",
-            "sports", "entertainment", "science", "automobile", "politics"
+            "top_stories", "trending"
         ]
         tasks.append(("inshorts", "inshorts_api", inshorts_categories, None))
 
