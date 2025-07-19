@@ -40,6 +40,11 @@ class TestArticleScraper:
         """Test RSS article extraction."""
         # Mock feedparser response
         mock_entry = Mock()
+        # Set up both attribute and dict-style access
+        mock_entry.title = 'Test Article'
+        mock_entry.link = 'https://example.com/test'
+        mock_entry.published = '2025-01-01'
+        mock_entry.summary = 'Test summary'
         mock_entry.get.side_effect = lambda key, default='': {
             'title': 'Test Article',
             'link': 'https://example.com/test',
@@ -47,6 +52,15 @@ class TestArticleScraper:
             'summary': 'Test summary'
         }.get(key, default)
         mock_entry.tags = []
+        mock_entry.media_content = []
+        mock_entry.media_thumbnail = []
+        mock_entry.enclosures = []
+        mock_entry.links = []
+        mock_entry.content = []
+        mock_entry.description = ""
+        # Add image field attributes
+        for attr in ['image', 'featured_image', 'thumbnail', 'img', 'picture']:
+            setattr(mock_entry, attr, "")
         
         mock_feed = Mock()
         mock_feed.entries = [mock_entry]

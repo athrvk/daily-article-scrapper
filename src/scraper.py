@@ -622,6 +622,8 @@ class ArticleScraper:
         # return f"https://via.placeholder.com/400x300/4a90e2/ffffff?text={source.upper()}"
         
         return ""
+
+    def scrape_daily_articles(self, target_count: int = None) -> List[Dict[str, Any]]:
         target_count = target_count or self.config.TARGET_ARTICLE_COUNT
         all_articles = []
 
