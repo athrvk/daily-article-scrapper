@@ -462,18 +462,15 @@ class ArticleScraper:
     def _fetch_inshorts_category(
         self, category: str, max_limit: int, news_offset: str = None
     ) -> List[Dict[str, Any]]:
-        """Fetch articles from a specific InShorts category."""
+        """Fetch articles from a specific InShorts category using public API."""
         try:
-            # Build API URL
-            url = f"{self.config.INSHORTS_API_BASE_URL}/news"
-            params = {"category": category, "max_limit": max_limit, "include_card_data": "true"}
-
-            if news_offset:
-                params["news_offset"] = news_offset
+            # Build API URL - the public API uses query params directly
+            url = self.config.INSHORTS_API_BASE_URL
+            params = {"category": category}
 
             # Make request with proper headers
             response = self.session.get(
-                url, params=params, headers=self.config.INSHORTS_HEADERS, timeout=10
+                url, params=params, headers=self.config.INSHORTS_HEADERS, timeout=15
             )
             response.raise_for_status()
 
@@ -481,12 +478,32 @@ class ArticleScraper:
             data = response.json()
 
             # Extract articles from response
+            # The public API structure can vary, handle multiple formats
             articles = []
-            if "data" in data and "news_list" in data["data"]:
-                for item in data["data"]["news_list"]:
-                    article = self._parse_inshorts_article(item, category)
-                    if article:
-                        articles.append(article)
+            news_list = []
+            
+            # Try different response structures
+            if "data" in data:
+                # Structure 1: {"data": {"news_list": [...]}} or {"data": [...]}
+                if isinstance(data["data"], dict) and "news_list" in data["data"]:
+                    news_list = data["data"]["news_list"]
+                elif isinstance(data["data"], list):
+                    news_list = data["data"]
+            elif "articles" in data:
+                # Structure 2: {"articles": [...]}
+                news_list = data["articles"]
+            elif isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
+                # Structure 3: {"data": {"articles": [...]}}
+                news_list = data["data"].get("articles", [])
+            elif isinstance(data, list):
+                # Structure 4: Direct list [...]
+                news_list = data
+            
+            # Parse each article
+            for item in news_list[:max_limit]:
+                article = self._parse_inshorts_article(item, category)
+                if article:
+                    articles.append(article)
 
             return articles
 
@@ -501,19 +518,86 @@ class ArticleScraper:
             return []
 
     def _parse_inshorts_article(self, item: Dict[str, Any], category: str) -> Dict[str, Any]:
-        """Parse a single InShorts article from API response."""
+        """Parse a single InShorts article from API response.
+        
+        Handles multiple field name variations from different API sources.
+        """
         try:
-            # Extract article data
+            # Extract article data - handle multiple field name variations
+            # Different APIs may use different field names
+            title = (
+                item.get("title") or 
+                item.get("headline") or 
+                item.get("name") or 
+                ""
+            )
+            
+            url = (
+                item.get("source_url") or 
+                item.get("url") or 
+                item.get("readMoreUrl") or 
+                item.get("sourceUrl") or 
+                item.get("link") or 
+                ""
+            )
+            
+            content = (
+                item.get("content") or 
+                item.get("summary") or 
+                item.get("description") or 
+                item.get("text") or 
+                ""
+            )
+            
+            image_url = (
+                item.get("image_url") or 
+                item.get("imageUrl") or 
+                item.get("image") or 
+                item.get("thumbnail") or 
+                ""
+            )
+            
+            created_at = (
+                item.get("created_at") or 
+                item.get("createdAt") or 
+                item.get("date") or 
+                item.get("time") or 
+                item.get("published") or 
+                ""
+            )
+            
+            source_name = (
+                item.get("source_name") or 
+                item.get("sourceName") or 
+                item.get("author") or 
+                item.get("authorName") or 
+                "InShorts"
+            )
+            
+            hash_id = (
+                item.get("hash_id") or 
+                item.get("hashId") or 
+                item.get("id") or 
+                ""
+            )
+            
+            tags = item.get("tags", [])
+            if isinstance(tags, str):
+                tags = [tags]
+            elif not isinstance(tags, list):
+                tags = []
+            
+            # Build article dictionary
             article = {
-                "title": item.get("title", ""),
-                "url": item.get("source_url", ""),
-                "published": item.get("created_at", ""),
-                "summary": item.get("content", ""),
+                "title": title,
+                "url": url,
+                "published": created_at,
+                "summary": content,
                 "source": "inshorts.com",
-                "tags": item.get("tags", []) + [category],
-                "image": item.get("image_url", ""),
-                "inshorts_id": item.get("hash_id", ""),
-                "original_source": item.get("source_name", ""),
+                "tags": tags + [category],
+                "image": image_url,
+                "inshorts_id": hash_id,
+                "original_source": source_name,
             }
 
             # Validate required fields
@@ -524,9 +608,14 @@ class ArticleScraper:
             # Convert timestamp if needed
             if article["published"]:
                 try:
-                    # InShorts typically uses ISO format
-                    if "T" in article["published"]:
-                        dt = datetime.fromisoformat(article["published"].replace("Z", "+00:00"))
+                    # InShorts typically uses ISO format or Unix timestamp
+                    if isinstance(article["published"], (int, float)):
+                        # Unix timestamp
+                        dt = datetime.fromtimestamp(article["published"], tz=timezone.utc)
+                        article["published"] = dt.isoformat()
+                    elif "T" in str(article["published"]):
+                        # ISO format
+                        dt = datetime.fromisoformat(str(article["published"]).replace("Z", "+00:00"))
                         article["published"] = dt.isoformat()
                 except Exception as e:
                     logger.debug(f"Could not parse InShorts timestamp: {e}")
@@ -722,7 +811,7 @@ class ArticleScraper:
 
         # Add InShorts API as the highest priority task with more categories
         inshorts_categories = [
-            "top_stories", "trending"
+            "all", "national", "business"
         ]
         tasks.append(("inshorts", "inshorts_api", inshorts_categories, None))
 

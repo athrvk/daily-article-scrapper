@@ -29,33 +29,41 @@ class Config:
     AUTO_CLEANUP_ENABLED = os.getenv("AUTO_CLEANUP_ENABLED", "true").lower() == "true"
     CLEANUP_MONTHS_OLD = int(os.getenv("CLEANUP_MONTHS_OLD", "2"))
 
-    # User agent for requests - Updated to match Chrome 137 (consistent with sec-ch-ua header)
+    # User agent for requests - Updated to modern Chrome version
     USER_AGENT = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
 
-    # InShorts API configuration - Prioritized for better image coverage
-    INSHORTS_API_BASE_URL = "https://inshorts.com/api/en"
+    # InShorts API configuration - Using public API wrapper for better reliability
+    # Public API: https://inshortsapi.vercel.app/news
+    INSHORTS_API_BASE_URL = "https://inshortsapi.vercel.app/news"
     INSHORTS_CATEGORIES = {
-        "top_stories": {"max_limit": 35, "priority": 1},
-        "trending": {"max_limit": 20, "priority": 2},
+        "all": {"max_limit": 35, "priority": 1},
+        "national": {"max_limit": 20, "priority": 2},
+        "business": {"max_limit": 15, "priority": 3},
+        "sports": {"max_limit": 15, "priority": 4},
+        "world": {"max_limit": 15, "priority": 5},
+        "politics": {"max_limit": 15, "priority": 6},
+        "technology": {"max_limit": 15, "priority": 7},
+        "startup": {"max_limit": 10, "priority": 8},
+        "entertainment": {"max_limit": 10, "priority": 9},
+        "science": {"max_limit": 10, "priority": 10},
     }
 
     # Headers for InShorts API to avoid bot detection
     INSHORTS_HEADERS = {
-        "accept": "*/*",
+        "accept": "application/json, text/plain, */*",
         "accept-language": "en-US,en;q=0.9",
         "cache-control": "no-cache",
-        "content-type": "application/json",
         "dnt": "1",
         "pragma": "no-cache",
-        "sec-ch-ua": '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+        "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
+        "sec-fetch-site": "cross-site",
         "user-agent": USER_AGENT,
     }
 
