@@ -76,7 +76,6 @@ class Config:
         "guardian_technology": "https://www.theguardian.com/technology/rss",
         "al_jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
         "reuters_world": "https://www.reutersagency.com/feed/?taxonomy=best-topics&post_type=best",
-        
         # Technology & Innovation - Top Tech Publications
         "techcrunch": "https://techcrunch.com/feed/",
         "wired": "https://www.wired.com/feed/rss",
@@ -84,20 +83,17 @@ class Config:
         "ars_technica": "http://feeds.arstechnica.com/arstechnica/index",
         "engadget": "https://www.engadget.com/rss.xml",
         "cnet": "https://www.cnet.com/rss/news/",
-        
         # Business & Economics - Financial News
         "bloomberg": "https://feeds.bloomberg.com/markets/news.rss",
         "financial_times": "https://www.ft.com/rss/home",
         "forbes": "https://www.forbes.com/real-time/feed2/",
         "economist": "https://www.economist.com/rss",
         "business_insider": "https://www.businessinsider.com/rss",
-        
         # Science & Health - Research and Medical News
         "nature_news": "https://www.nature.com/nature.rss",
         "scientific_american": "http://rss.sciam.com/ScientificAmerican-Global",
         "new_scientist": "https://www.newscientist.com/feed/home/",
         "science_daily": "https://www.sciencedaily.com/rss/all.xml",
-        
         # Regional Perspectives - Diverse Global Sources
         "cnn_international": "http://rss.cnn.com/rss/edition.rss",
         "cnn_technology": "http://rss.cnn.com/rss/edition_technology.rss",
@@ -105,11 +101,9 @@ class Config:
         "france24": "https://www.france24.com/en/rss",
         "japan_times": "https://www.japantimes.co.jp/feed/",
         "south_china_morning_post": "https://www.scmp.com/rss/91/feed",
-        
         # Quality Content Aggregators
         "reddit_worldnews": "https://www.reddit.com/r/worldnews/.rss",
         "hackernews": "https://hnrss.org/frontpage",
-        
         # Specialized Quality Publications
         "mit_tech_review": "https://www.technologyreview.com/feed/",
         "atlantic": "https://www.theatlantic.com/feed/all/",
@@ -120,23 +114,18 @@ class Config:
     MEDIUM_PUBLICATIONS: List[str] = [
         # Data Science & AI
         "https://towardsdatascience.com/feed",
-        
         # Technology & Startups
         "https://medium.com/feed/hackernoon",
         "https://medium.com/feed/the-startup",
         "https://medium.com/feed/better-programming",
-        
         # Business & Leadership
         "https://medium.com/feed/the-mission",
         "https://medium.com/feed/swlh",  # The Startup's publication
-        
         # Personal Development
         "https://medium.com/feed/personal-growth",
         "https://medium.com/feed/thrive-global",
-        
         # Design & UX
         "https://medium.com/feed/ux-collective",
-        
         # Science & Future
         "https://medium.com/feed/predict",
     ]

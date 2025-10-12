@@ -253,6 +253,37 @@ class TestArticleScraper:
         mock_get.assert_called()
     
     @patch('src.scraper.requests.Session.get')
+    def test_scrape_inshorts_articles_alternative_format(self, mock_get, scraper):
+        """Test InShorts API scraping with alternative public API format."""
+        # Mock successful API response with alternative structure
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            'data': [
+                {
+                    'id': 'test-hash-2',
+                    'title': 'Alternative Format Article',
+                    'content': 'Test content from public API',
+                    'author': 'News Source',
+                    'readMoreUrl': 'https://example.com/test2',
+                    'imageUrl': 'https://example.com/image2.jpg',
+                    'date': 1704067200,
+                    'tags': 'news,tech'
+                }
+            ]
+        }
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+        
+        articles = scraper.scrape_inshorts_articles(['all'])
+        
+        assert len(articles) == 1
+        assert articles[0]['title'] == 'Alternative Format Article'
+        assert articles[0]['source'] == 'inshorts.com'
+        assert articles[0]['url'] == 'https://example.com/test2'
+        assert 'image' in articles[0]
+        mock_get.assert_called()
+    
+    @patch('src.scraper.requests.Session.get')
     def test_fetch_inshorts_category_error_handling(self, mock_get, scraper):
         """Test InShorts API error handling."""
         # Mock network error

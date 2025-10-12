@@ -4,49 +4,53 @@
 
 This document describes the integration of InShorts API as a new article source in the Daily Article Scraper. InShorts is a popular news aggregation service that provides short, concise news articles from various sources.
 
+**Update (2025)**: The integration now uses a public InShorts API wrapper for improved reliability and accessibility.
+
 ## API Endpoints Integrated
 
-The following InShorts API endpoints have been integrated:
+The following InShorts API endpoint is now used:
 
-1. **News Articles**: `https://inshorts.com/api/en/news`
-   - Parameters: `category`, `max_limit`, `include_card_data`, `news_offset`
-   - Categories: `top_stories`, `trending`, `business`, `technology`, `world`
-
-2. **Trending Topics**: `https://inshorts.com/api/en/search/trending_topics`
-   - Returns current trending topics from InShorts
+1. **News Articles (Public API)**: `https://inshortsapi.vercel.app/news`
+   - Parameters: `category`
+   - Categories: `all`, `national`, `business`, `sports`, `world`, `politics`, `technology`, `startup`, `entertainment`, `science`
+   - This is a community-maintained public API wrapper that provides reliable access to InShorts news
 
 ## Configuration
 
-### New Settings Added
+### Settings
 
-In `config/settings.py`, the following new configuration has been added:
+In `config/settings.py`, the following configuration is used:
 
 ```python
-# InShorts API configuration
-INSHORTS_API_BASE_URL = "https://inshorts.com/api/en"
+# InShorts API configuration - Using public API wrapper
+INSHORTS_API_BASE_URL = "https://inshortsapi.vercel.app/news"
 INSHORTS_CATEGORIES = {
-    'top_stories': {'max_limit': 10, 'priority': 1},
-    'trending': {'max_limit': 8, 'priority': 2},
-    'business': {'max_limit': 5, 'priority': 3},
-    'technology': {'max_limit': 5, 'priority': 4},
-    'world': {'max_limit': 5, 'priority': 5}
+    'all': {'max_limit': 35, 'priority': 1},
+    'national': {'max_limit': 20, 'priority': 2},
+    'business': {'max_limit': 15, 'priority': 3},
+    'sports': {'max_limit': 15, 'priority': 4},
+    'world': {'max_limit': 15, 'priority': 5},
+    'politics': {'max_limit': 15, 'priority': 6},
+    'technology': {'max_limit': 15, 'priority': 7},
+    'startup': {'max_limit': 10, 'priority': 8},
+    'entertainment': {'max_limit': 10, 'priority': 9},
+    'science': {'max_limit': 10, 'priority': 10}
 }
 
 # Headers for InShorts API to avoid bot detection
 INSHORTS_HEADERS = {
-    'accept': '*/*',
+    'accept': 'application/json, text/plain, */*',
     'accept-language': 'en-US,en;q=0.9',
     'cache-control': 'no-cache',
-    'content-type': 'application/json',
     'dnt': '1',
     'pragma': 'no-cache',
-    'sec-ch-ua': '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+    'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
-    'sec-fetch-site': 'same-origin',
-    'user-agent': USER_AGENT
+    'sec-fetch-site': 'cross-site',
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 ```
 
@@ -68,14 +72,15 @@ INSHORTS_HEADERS = {
 #### `_fetch_inshorts_category(category, max_limit, news_offset)`
 - **Purpose**: Fetch articles from a specific InShorts category
 - **Parameters**:
-  - `category`: Category name (e.g., 'top_stories', 'trending')
+  - `category`: Category name (e.g., 'all', 'national', 'business')
   - `max_limit`: Maximum number of articles to fetch
-  - `news_offset`: Pagination offset (optional)
+  - `news_offset`: Pagination offset (optional, not used with current public API)
 - **Returns**: List of parsed articles
 - **Features**:
   - Handles API requests with proper headers
-  - JSON response parsing
+  - JSON response parsing with multiple format support
   - Network error handling
+  - Supports various API response structures
 
 #### `_parse_inshorts_article(item, category)`
 - **Purpose**: Parse a single article from InShorts API response
@@ -85,8 +90,10 @@ INSHORTS_HEADERS = {
 - **Returns**: Parsed article dictionary or None if invalid
 - **Features**:
   - Validates required fields
-  - Handles timestamp conversion
+  - Handles timestamp conversion (ISO format and Unix timestamps)
   - Adds category tags
+  - Supports multiple field name variations (e.g., `source_url`, `readMoreUrl`, `url`)
+  - Handles different data types and formats from various API sources
 
 #### `get_inshorts_trending_topics()`
 - **Purpose**: Fetch trending topics from InShorts
