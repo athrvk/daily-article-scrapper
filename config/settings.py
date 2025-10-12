@@ -29,41 +29,38 @@ class Config:
     AUTO_CLEANUP_ENABLED = os.getenv("AUTO_CLEANUP_ENABLED", "true").lower() == "true"
     CLEANUP_MONTHS_OLD = int(os.getenv("CLEANUP_MONTHS_OLD", "2"))
 
-    # User agent for requests - Updated to modern Chrome version
+    # User agent for requests - Updated to match Chrome 137 (consistent with sec-ch-ua header)
     USER_AGENT = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
 
-    # InShorts API configuration - Using public API wrapper for better reliability
-    # Public API: https://inshortsapi.vercel.app/news
-    INSHORTS_API_BASE_URL = "https://inshortsapi.vercel.app/news"
+    # InShorts API configuration - Prioritized for better image coverage
+    INSHORTS_API_BASE_URL = "https://inshorts.com/api/en"
     INSHORTS_CATEGORIES = {
-        "all": {"max_limit": 35, "priority": 1},
-        "national": {"max_limit": 20, "priority": 2},
-        "business": {"max_limit": 15, "priority": 3},
-        "sports": {"max_limit": 15, "priority": 4},
-        "world": {"max_limit": 15, "priority": 5},
-        "politics": {"max_limit": 15, "priority": 6},
-        "technology": {"max_limit": 15, "priority": 7},
-        "startup": {"max_limit": 10, "priority": 8},
-        "entertainment": {"max_limit": 10, "priority": 9},
-        "science": {"max_limit": 10, "priority": 10},
+        "all_news": {"max_limit": 35, "priority": 1},
+        "top_stories": {"max_limit": 20, "priority": 2},
+        "trending": {"max_limit": 15, "priority": 3},
+        "business": {"max_limit": 10, "priority": 4},
+        "technology": {"max_limit": 10, "priority": 5},
     }
 
     # Headers for InShorts API to avoid bot detection
+    # Based on analysis of actual InShorts website requests
     INSHORTS_HEADERS = {
-        "accept": "application/json, text/plain, */*",
+        "accept": "*/*",
         "accept-language": "en-US,en;q=0.9",
         "cache-control": "no-cache",
+        "content-type": "application/json",
         "dnt": "1",
         "pragma": "no-cache",
+        "referer": "https://inshorts.com/en/read",
         "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
-        "sec-fetch-site": "cross-site",
+        "sec-fetch-site": "same-origin",
         "user-agent": USER_AGENT,
     }
 
