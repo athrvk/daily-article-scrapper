@@ -4,35 +4,37 @@
 
 This document describes the integration of InShorts API as a new article source in the Daily Article Scraper. InShorts is a popular news aggregation service that provides short, concise news articles from various sources.
 
+**Update (2025)**: The integration uses the actual InShorts API endpoint at `https://inshorts.com/api/en/news` with proper headers to avoid bot detection.
+
 ## API Endpoints Integrated
 
-The following InShorts API endpoints have been integrated:
+The following InShorts API endpoint is used:
 
 1. **News Articles**: `https://inshorts.com/api/en/news`
-   - Parameters: `category`, `max_limit`, `include_card_data`, `news_offset`
-   - Categories: `top_stories`, `trending`, `business`, `technology`, `world`
-
-2. **Trending Topics**: `https://inshorts.com/api/en/search/trending_topics`
-   - Returns current trending topics from InShorts
+   - Parameters: `category`, `max_limit`, `include_card_data`
+   - Categories: `all_news`, `top_stories`, `trending`, `business`, `technology`, etc.
+   - Response structure: `{'data': {'news_list': [{'news_obj': {...}}]}}`
+   - Each article is wrapped in a `news_obj` field
 
 ## Configuration
 
-### New Settings Added
+### Settings
 
-In `config/settings.py`, the following new configuration has been added:
+In `config/settings.py`, the following configuration is used:
 
 ```python
 # InShorts API configuration
 INSHORTS_API_BASE_URL = "https://inshorts.com/api/en"
 INSHORTS_CATEGORIES = {
-    'top_stories': {'max_limit': 10, 'priority': 1},
-    'trending': {'max_limit': 8, 'priority': 2},
-    'business': {'max_limit': 5, 'priority': 3},
-    'technology': {'max_limit': 5, 'priority': 4},
-    'world': {'max_limit': 5, 'priority': 5}
+    'all_news': {'max_limit': 35, 'priority': 1},
+    'top_stories': {'max_limit': 20, 'priority': 2},
+    'trending': {'max_limit': 15, 'priority': 3},
+    'business': {'max_limit': 10, 'priority': 4},
+    'technology': {'max_limit': 10, 'priority': 5}
 }
 
 # Headers for InShorts API to avoid bot detection
+# Critical: Must include 'referer' header pointing to the InShorts website
 INSHORTS_HEADERS = {
     'accept': '*/*',
     'accept-language': 'en-US,en;q=0.9',
@@ -40,13 +42,14 @@ INSHORTS_HEADERS = {
     'content-type': 'application/json',
     'dnt': '1',
     'pragma': 'no-cache',
-    'sec-ch-ua': '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+    'referer': 'https://inshorts.com/en/read',  # Critical for API access
+    'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'same-origin',
-    'user-agent': USER_AGENT
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 ```
 
@@ -68,24 +71,27 @@ INSHORTS_HEADERS = {
 #### `_fetch_inshorts_category(category, max_limit, news_offset)`
 - **Purpose**: Fetch articles from a specific InShorts category
 - **Parameters**:
-  - `category`: Category name (e.g., 'top_stories', 'trending')
+  - `category`: Category name (e.g., 'all_news', 'top_stories', 'business')
   - `max_limit`: Maximum number of articles to fetch
   - `news_offset`: Pagination offset (optional)
 - **Returns**: List of parsed articles
 - **Features**:
-  - Handles API requests with proper headers
-  - JSON response parsing
+  - Handles API requests with proper headers including referer
+  - JSON response parsing: `{'data': {'news_list': [{'news_obj': {...}}]}}`
   - Network error handling
+  - Extracts articles from `news_list` array
 
 #### `_parse_inshorts_article(item, category)`
 - **Purpose**: Parse a single article from InShorts API response
 - **Parameters**:
-  - `item`: Raw article data from API
+  - `item`: Raw article data from API (contains `news_obj` key)
   - `category`: Category name for tagging
 - **Returns**: Parsed article dictionary or None if invalid
 - **Features**:
-  - Validates required fields
-  - Handles timestamp conversion
+  - Extracts data from `news_obj` wrapper
+  - Validates required fields (title, source_url)
+  - Handles Unix timestamp in milliseconds (converted from `created_at`)
+  - Maps field names: `author_name` -> `original_source`
   - Adds category tags
 
 #### `get_inshorts_trending_topics()`

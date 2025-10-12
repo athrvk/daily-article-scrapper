@@ -63,14 +63,14 @@ class ArticleScraper:
                                 return link.href
 
             # 5. Check custom RSS image fields (common extensions)
-            image_fields = ['image', 'featured_image', 'thumbnail', 'img', 'picture']
+            image_fields = ["image", "featured_image", "thumbnail", "img", "picture"]
             for field in image_fields:
                 if hasattr(entry, field):
                     img_value = getattr(entry, field)
                     if isinstance(img_value, str) and img_value.strip():
                         if self._is_valid_image_url(img_value):
                             return img_value
-                    elif hasattr(img_value, 'href') and img_value.href:
+                    elif hasattr(img_value, "href") and img_value.href:
                         if self._is_valid_image_url(img_value.href):
                             return img_value.href
 
@@ -110,7 +110,7 @@ class ArticleScraper:
         """Extract first image URL from HTML content with improved parsing."""
         try:
             soup = BeautifulSoup(html_content, "html.parser")
-            
+
             # Look for img tags with various attributes
             img_tags = soup.find_all("img")
             for img_tag in img_tags:
@@ -119,23 +119,23 @@ class ArticleScraper:
                     img_url = img_tag["src"]
                     if self._is_valid_image_url(img_url):
                         return self._normalize_image_url(img_url)
-                
+
                 # Check data-src for lazy loading images
                 if img_tag.get("data-src"):
                     img_url = img_tag["data-src"]
                     if self._is_valid_image_url(img_url):
                         return self._normalize_image_url(img_url)
-                
+
                 # Check srcset for responsive images
                 if img_tag.get("srcset"):
                     srcset = img_tag["srcset"]
                     # Extract the first URL from srcset
-                    urls = srcset.split(',')
+                    urls = srcset.split(",")
                     if urls:
-                        first_url = urls[0].strip().split(' ')[0]
+                        first_url = urls[0].strip().split(" ")[0]
                         if self._is_valid_image_url(first_url):
                             return self._normalize_image_url(first_url)
-            
+
             return ""
         except Exception as e:
             logger.debug(f"Error extracting image from HTML: {e}")
@@ -145,46 +145,50 @@ class ArticleScraper:
         """Validate if URL is likely to be a valid image URL."""
         if not url or not isinstance(url, str):
             return False
-        
+
         url = url.strip()
         if not url:
             return False
-        
+
         # Must be HTTP/HTTPS or protocol-relative
-        if not (url.startswith('http://') or url.startswith('https://') or url.startswith('//')):
+        if not (
+            url.startswith("http://")
+            or url.startswith("https://")
+            or url.startswith("//")
+        ):
             return False
-        
+
         # Skip common non-image extensions
-        skip_extensions = ['.pdf', '.doc', '.docx', '.zip', '.mp4', '.avi', '.mp3']
+        skip_extensions = [".pdf", ".doc", ".docx", ".zip", ".mp4", ".avi", ".mp3"]
         if any(url.lower().endswith(ext) for ext in skip_extensions):
             return False
-        
+
         # Skip obviously invalid URLs (but allow example.com for testing)
-        if any(invalid in url.lower() for invalid in ['localhost', '127.0.0.1']):
+        if any(invalid in url.lower() for invalid in ["localhost", "127.0.0.1"]):
             return False
-        
+
         # Skip too short URLs
         if len(url) < 10:
             return False
-        
+
         return True
 
     def _normalize_image_url(self, url: str) -> str:
         """Normalize image URL to ensure it's properly formatted."""
         if not url:
             return ""
-        
+
         url = url.strip()
-        
+
         # Handle protocol-relative URLs
-        if url.startswith('//'):
-            url = 'https:' + url
-        
+        if url.startswith("//"):
+            url = "https:" + url
+
         # Handle relative URLs (this is basic, may need domain context)
-        if url.startswith('/') and not url.startswith('//'):
+        if url.startswith("/") and not url.startswith("//"):
             # For now, skip relative URLs as we don't have base domain context
             return ""
-        
+
         return url
 
     def _extract_image_from_webpage(self, page_url: str) -> str:
@@ -193,47 +197,57 @@ class ArticleScraper:
             # Only try this for a subset of URLs to avoid too many requests
             if not page_url or len(page_url) > 200:
                 return ""
-            
+
             # Skip if URL seems invalid
-            if not (page_url.startswith('http://') or page_url.startswith('https://')):
+            if not (page_url.startswith("http://") or page_url.startswith("https://")):
                 return ""
-            
+
             # Quick check for common news domains that are likely to have meta tags
-            trusted_domains = ['bbc.com', 'cnn.com', 'reuters.com', 'bloomberg.com', 
-                              'techcrunch.com', 'theverge.com', 'wired.com', 'forbes.com']
-            
+            trusted_domains = [
+                "bbc.com",
+                "cnn.com",
+                "reuters.com",
+                "bloomberg.com",
+                "techcrunch.com",
+                "theverge.com",
+                "wired.com",
+                "forbes.com",
+            ]
+
             if not any(domain in page_url.lower() for domain in trusted_domains):
                 return ""
-            
-            response = self.session.get(page_url, timeout=5, headers={'User-Agent': self.config.USER_AGENT})
+
+            response = self.session.get(
+                page_url, timeout=5, headers={"User-Agent": self.config.USER_AGENT}
+            )
             if response.status_code != 200:
                 return ""
-            
+
             soup = BeautifulSoup(response.content, "html.parser")
-            
+
             # Check Open Graph image
             og_image = soup.find("meta", property="og:image")
             if og_image and og_image.get("content"):
                 img_url = og_image["content"]
                 if self._is_valid_image_url(img_url):
                     return self._normalize_image_url(img_url)
-            
+
             # Check Twitter Card image
             twitter_image = soup.find("meta", attrs={"name": "twitter:image"})
             if twitter_image and twitter_image.get("content"):
                 img_url = twitter_image["content"]
                 if self._is_valid_image_url(img_url):
                     return self._normalize_image_url(img_url)
-            
+
             # Check for article featured image meta tags
             featured_meta = soup.find("meta", attrs={"name": "featured-image"})
             if featured_meta and featured_meta.get("content"):
                 img_url = featured_meta["content"]
                 if self._is_valid_image_url(img_url):
                     return self._normalize_image_url(img_url)
-            
+
             return ""
-            
+
         except Exception as e:
             logger.debug(f"Error extracting image from webpage {page_url}: {e}")
             return ""
@@ -248,7 +262,7 @@ class ArticleScraper:
                 for container in [parent, parent.parent] if parent.parent else [parent]:
                     if not container:
                         continue
-                    
+
                     # Look for img tags in the container
                     img = container.find("img")
                     if img:
@@ -257,43 +271,46 @@ class ArticleScraper:
                             src = img["src"]
                             if self._is_valid_image_url(src):
                                 return self._normalize_image_url(src)
-                        
+
                         # Check data-src for lazy loading
                         if img.get("data-src"):
                             src = img["data-src"]
                             if self._is_valid_image_url(src):
                                 return self._normalize_image_url(src)
-                        
+
                         # Check srcset
                         if img.get("srcset"):
                             srcset = img["srcset"]
-                            urls = srcset.split(',')
+                            urls = srcset.split(",")
                             if urls:
-                                first_url = urls[0].strip().split(' ')[0]
+                                first_url = urls[0].strip().split(" ")[0]
                                 if self._is_valid_image_url(first_url):
                                     return self._normalize_image_url(first_url)
-                
+
                 # Look for background images in style attributes
-                for element in container.find_all(["div", "span", "section", "article"], style=True):
+                for element in container.find_all(
+                    ["div", "span", "section", "article"], style=True
+                ):
                     style = element.get("style", "")
                     if "background-image" in style:
                         # Extract URL from background-image: url(...)
                         import re
+
                         match = re.search(r'url\(["\']?(.*?)["\']?\)', style)
                         if match:
                             img_url = match.group(1)
                             if self._is_valid_image_url(img_url):
                                 return self._normalize_image_url(img_url)
-                
+
                 # Look for picture elements (responsive images)
                 picture = container.find("picture")
                 if picture:
                     source = picture.find("source")
                     if source and source.get("srcset"):
                         srcset = source["srcset"]
-                        urls = srcset.split(',')
+                        urls = srcset.split(",")
                         if urls:
-                            first_url = urls[0].strip().split(' ')[0]
+                            first_url = urls[0].strip().split(" ")[0]
                             if self._is_valid_image_url(first_url):
                                 return self._normalize_image_url(first_url)
 
@@ -302,7 +319,9 @@ class ArticleScraper:
             logger.debug(f"Error extracting Medium image: {e}")
             return ""
 
-    def get_rss_articles(self, feed_url: str, max_articles: int = 5) -> List[Dict[str, Any]]:
+    def get_rss_articles(
+        self, feed_url: str, max_articles: int = 5
+    ) -> List[Dict[str, Any]]:
         """Extract articles from RSS feed."""
         try:
             logger.info(f"Fetching RSS feed: {feed_url}")
@@ -317,12 +336,39 @@ class ArticleScraper:
                 image_url = self._extract_image_from_rss_entry(entry)
 
                 article = {
-                    "title": getattr(entry, 'title', entry.get("title", "No Title") if hasattr(entry, 'get') else "No Title"),
-                    "url": getattr(entry, 'link', entry.get("link", "") if hasattr(entry, 'get') else ""),
-                    "published": getattr(entry, 'published', entry.get("published", "") if hasattr(entry, 'get') else ""),
-                    "summary": getattr(entry, 'summary', entry.get("summary", "") if hasattr(entry, 'get') else ""),
+                    "title": getattr(
+                        entry,
+                        "title",
+                        (
+                            entry.get("title", "No Title")
+                            if hasattr(entry, "get")
+                            else "No Title"
+                        ),
+                    ),
+                    "url": getattr(
+                        entry,
+                        "link",
+                        entry.get("link", "") if hasattr(entry, "get") else "",
+                    ),
+                    "published": getattr(
+                        entry,
+                        "published",
+                        entry.get("published", "") if hasattr(entry, "get") else "",
+                    ),
+                    "summary": getattr(
+                        entry,
+                        "summary",
+                        entry.get("summary", "") if hasattr(entry, "get") else "",
+                    ),
                     "source": urlparse(feed_url).netloc,
-                    "tags": [tag.term for tag in getattr(entry, 'tags', entry.get("tags", []) if hasattr(entry, 'get') else [])],
+                    "tags": [
+                        tag.term
+                        for tag in getattr(
+                            entry,
+                            "tags",
+                            entry.get("tags", []) if hasattr(entry, "get") else [],
+                        )
+                    ],
                     "image": image_url,
                 }
                 articles.append(article)
@@ -360,14 +406,14 @@ class ArticleScraper:
                         pass
                     else:
                         continue
-                    
+
                     # Remove query parameters and fragments for deduplication
-                    base_url = href.split('?')[0].split('#')[0]
-                    
+                    base_url = href.split("?")[0].split("#")[0]
+
                     # Skip if we've already seen this URL
                     if base_url in seen_urls:
                         continue
-                    
+
                     seen_urls.add(base_url)
 
                     title = link.get_text(strip=True)
@@ -437,7 +483,9 @@ class ArticleScraper:
 
         for category in categories:
             try:
-                category_config = self.config.INSHORTS_CATEGORIES.get(category, {"max_limit": 5})
+                category_config = self.config.INSHORTS_CATEGORIES.get(
+                    category, {"max_limit": 5}
+                )
                 max_limit = max_articles_per_category or category_config["max_limit"]
 
                 logger.info(f"Fetching InShorts articles for category: {category}")
@@ -445,7 +493,9 @@ class ArticleScraper:
 
                 if articles:
                     all_articles.extend(articles)
-                    logger.info(f"Retrieved {len(articles)} articles from InShorts {category}")
+                    logger.info(
+                        f"Retrieved {len(articles)} articles from InShorts {category}"
+                    )
                 else:
                     logger.warning(f"No articles found for InShorts {category}")
 
@@ -466,7 +516,11 @@ class ArticleScraper:
         try:
             # Build API URL
             url = f"{self.config.INSHORTS_API_BASE_URL}/news"
-            params = {"category": category, "max_limit": max_limit, "include_card_data": "true"}
+            params = {
+                "category": category,
+                "max_limit": max_limit,
+                "include_card_data": "true",
+            }
 
             if news_offset:
                 params["news_offset"] = news_offset
@@ -500,20 +554,28 @@ class ArticleScraper:
             logger.error(f"Unexpected error fetching InShorts {category}: {str(e)}")
             return []
 
-    def _parse_inshorts_article(self, item: Dict[str, Any], category: str) -> Dict[str, Any]:
-        """Parse a single InShorts article from API response."""
+    def _parse_inshorts_article(
+        self, item: Dict[str, Any], category: str
+    ) -> Dict[str, Any]:
+        """Parse a single InShorts article from API response.
+
+        The InShorts API returns items with a 'news_obj' key containing the actual news data.
+        """
         try:
-            # Extract article data
+            # Extract the news object - InShorts wraps the actual data in 'news_obj'
+            news = item.get("news_obj", item)
+
+            # Extract article data from the news object
             article = {
-                "title": item.get("title", ""),
-                "url": item.get("source_url", ""),
-                "published": item.get("created_at", ""),
-                "summary": item.get("content", ""),
+                "title": news.get("title", ""),
+                "url": news.get("source_url", ""),
+                "published": news.get("created_at", 0),
+                "summary": news.get("content", ""),
                 "source": "inshorts.com",
-                "tags": item.get("tags", []) + [category],
-                "image": item.get("image_url", ""),
-                "inshorts_id": item.get("hash_id", ""),
-                "original_source": item.get("source_name", ""),
+                "tags": [category],
+                "image": news.get("image_url", ""),
+                "inshorts_id": news.get("hash_id", ""),
+                "original_source": news.get("author_name", ""),
             }
 
             # Validate required fields
@@ -521,12 +583,22 @@ class ArticleScraper:
                 logger.warning(f"Invalid InShorts article: missing title or URL")
                 return None
 
-            # Convert timestamp if needed
+            # Convert timestamp - InShorts uses Unix timestamp in milliseconds
             if article["published"]:
                 try:
-                    # InShorts typically uses ISO format
-                    if "T" in article["published"]:
-                        dt = datetime.fromisoformat(article["published"].replace("Z", "+00:00"))
+                    if isinstance(article["published"], (int, float)):
+                        # Unix timestamp in milliseconds, convert to seconds
+                        timestamp = article["published"] / 1000
+                        dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+                        article["published"] = dt.isoformat()
+                    elif (
+                        isinstance(article["published"], str)
+                        and "T" in article["published"]
+                    ):
+                        # ISO format string
+                        dt = datetime.fromisoformat(
+                            article["published"].replace("Z", "+00:00")
+                        )
                         article["published"] = dt.isoformat()
                 except Exception as e:
                     logger.debug(f"Could not parse InShorts timestamp: {e}")
@@ -545,7 +617,9 @@ class ArticleScraper:
         try:
             url = f"{self.config.INSHORTS_API_BASE_URL}/search/trending_topics"
 
-            response = self.session.get(url, headers=self.config.INSHORTS_HEADERS, timeout=10)
+            response = self.session.get(
+                url, headers=self.config.INSHORTS_HEADERS, timeout=10
+            )
             response.raise_for_status()
 
             data = response.json()
@@ -576,51 +650,65 @@ class ArticleScraper:
             logger.error(f"❌ Error scraping InShorts: {e}")
             return []
 
-    def _enhance_articles_with_images(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _enhance_articles_with_images(
+        self, articles: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """Post-process articles to ensure maximum image coverage."""
         enhanced_articles = []
         articles_without_images = []
-        
+
         # Separate articles with and without images
         for article in articles:
-            if article.get('image', '').strip():
+            if article.get("image", "").strip():
                 enhanced_articles.append(article)
             else:
                 articles_without_images.append(article)
-        
-        logger.info(f"Articles with images: {len(enhanced_articles)}, without images: {len(articles_without_images)}")
-        
+
+        logger.info(
+            f"Articles with images: {len(enhanced_articles)}, without images: {len(articles_without_images)}"
+        )
+
         # Try to get images for articles without them
         for article in articles_without_images:
             enhanced_article = article.copy()
-            
+
             # Try to extract image from the article URL
-            if article.get('url'):
+            if article.get("url"):
                 try:
-                    img_url = self._extract_image_from_webpage(article['url'])
+                    img_url = self._extract_image_from_webpage(article["url"])
                     if img_url:
-                        enhanced_article['image'] = img_url
-                        logger.debug(f"Found image for article: {article['title'][:50]}...")
+                        enhanced_article["image"] = img_url
+                        logger.debug(
+                            f"Found image for article: {article['title'][:50]}..."
+                        )
                     else:
                         # As a last resort, try to find a generic image based on source or tags
-                        enhanced_article['image'] = self._get_fallback_image(article)
-                        
+                        enhanced_article["image"] = self._get_fallback_image(article)
+
                 except Exception as e:
                     logger.debug(f"Could not fetch image for {article['url']}: {e}")
                     # Set a fallback image
-                    enhanced_article['image'] = self._get_fallback_image(article)
+                    enhanced_article["image"] = self._get_fallback_image(article)
             else:
-                enhanced_article['image'] = self._get_fallback_image(article)
-            
+                enhanced_article["image"] = self._get_fallback_image(article)
+
             enhanced_articles.append(enhanced_article)
-            
+
             # Add small delay to avoid overwhelming servers
             time.sleep(0.1)
-        
-        final_with_images = sum(1 for article in enhanced_articles if article.get('image', '').strip())
-        percentage = (final_with_images / len(enhanced_articles)) * 100 if enhanced_articles else 0
-        logger.info(f"Final image coverage: {final_with_images}/{len(enhanced_articles)} articles ({percentage:.1f}%)")
-        
+
+        final_with_images = sum(
+            1 for article in enhanced_articles if article.get("image", "").strip()
+        )
+        percentage = (
+            (final_with_images / len(enhanced_articles)) * 100
+            if enhanced_articles
+            else 0
+        )
+        logger.info(
+            f"Final image coverage: {final_with_images}/{len(enhanced_articles)} articles ({percentage:.1f}%)"
+        )
+
         return enhanced_articles
 
     def _get_fallback_image(self, article: Dict[str, Any]) -> str:
@@ -629,74 +717,86 @@ class ArticleScraper:
         # 1. Use a placeholder service like https://via.placeholder.com/
         # 2. Use source-specific default images
         # 3. Use category-based stock images
-        
+
         # Example placeholder (commented out to avoid external dependencies):
         # source = article.get('source', 'news').replace('.com', '').replace('.', '')
         # title_hash = hash(article.get('title', '')) % 10
         # return f"https://via.placeholder.com/400x300/4a90e2/ffffff?text={source.upper()}"
-        
+
         return ""
-    
+
     def _is_valid_article(self, article: Dict[str, Any]) -> bool:
         """Validate if an article meets quality criteria."""
         # Check required fields exist
-        if not article.get('title') or not article.get('url'):
-            logger.debug(f"Article missing required fields: {article.get('title', 'NO_TITLE')[:50]}")
+        if not article.get("title") or not article.get("url"):
+            logger.debug(
+                f"Article missing required fields: {article.get('title', 'NO_TITLE')[:50]}"
+            )
             return False
-        
+
         # Validate title quality
-        title = article['title'].strip()
+        title = article["title"].strip()
         if len(title) < 10:
             logger.debug(f"Article title too short: {title}")
             return False
-        
+
         if len(title) > 300:
             logger.debug(f"Article title too long: {title[:50]}...")
             return False
-        
+
         # Check for common non-article titles
         skip_keywords = [
-            'sign in', 'sign up', 'subscribe', 'newsletter',
-            'cookies', 'privacy policy', 'terms of service',
-            'about us', 'contact us', 'home', 'homepage'
+            "sign in",
+            "sign up",
+            "subscribe",
+            "newsletter",
+            "cookies",
+            "privacy policy",
+            "terms of service",
+            "about us",
+            "contact us",
+            "home",
+            "homepage",
         ]
         title_lower = title.lower()
         if any(keyword in title_lower for keyword in skip_keywords):
             logger.debug(f"Article title contains skip keyword: {title[:50]}")
             return False
-        
+
         # Validate URL
-        url = article['url'].strip()
-        if not (url.startswith('http://') or url.startswith('https://')):
+        url = article["url"].strip()
+        if not (url.startswith("http://") or url.startswith("https://")):
             logger.debug(f"Invalid URL format: {url[:50]}")
             return False
-        
+
         # Check for user profile patterns (Medium, etc.)
         # Allow /@username/article-slug but not just /@username
-        if '/@' in url and '/p/' not in url:
+        if "/@" in url and "/p/" not in url:
             # Check if it's just a profile URL (ends with username or has limited path)
             parsed = urlparse(url)
-            path_parts = [p for p in parsed.path.split('/') if p]
+            path_parts = [p for p in parsed.path.split("/") if p]
             # If path is just ['@username'] or ['@username', 'about'] etc, skip it
-            if len(path_parts) <= 2 and path_parts[0].startswith('@'):
+            if len(path_parts) <= 2 and path_parts[0].startswith("@"):
                 logger.debug(f"Skipping user profile URL: {url}")
                 return False
-        
+
         # Validate source
-        source = article.get('source', '').strip()
+        source = article.get("source", "").strip()
         if not source:
-            logger.debug(f"Article missing source: {article.get('title', 'NO_TITLE')[:50]}")
+            logger.debug(
+                f"Article missing source: {article.get('title', 'NO_TITLE')[:50]}"
+            )
             return False
-        
+
         # Check URL is not too long (might indicate malformed URLs)
         if len(url) > 500:
             logger.debug(f"URL too long: {url[:50]}...")
             return False
-        
+
         # Ensure article has some content indicators
         # At minimum, should have title, URL, and source
         # Image is preferred but not required (will be enhanced later)
-        
+
         return True
 
     def scrape_daily_articles(self, target_count: int = None) -> List[Dict[str, Any]]:
@@ -721,14 +821,14 @@ class ArticleScraper:
         tasks.append(("trending", "medium_trending", None, 5))
 
         # Add InShorts API as the highest priority task with more categories
-        inshorts_categories = [
-            "top_stories", "trending"
-        ]
+        inshorts_categories = ["all_news", "top_stories"]
         tasks.append(("inshorts", "inshorts_api", inshorts_categories, None))
 
         # Use ThreadPoolExecutor for concurrent fetching
         max_workers = min(len(tasks), 5)  # Limit to 5 concurrent threads
-        logger.info(f"📊 Processing {len(tasks)} sources with {max_workers} worker threads")
+        logger.info(
+            f"📊 Processing {len(tasks)} sources with {max_workers} worker threads"
+        )
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
@@ -742,7 +842,9 @@ class ArticleScraper:
                         self._fetch_rss_feed_safe, (name, url_or_data, max_articles)
                     )
                 elif task_type == "trending":
-                    future = executor.submit(self._fetch_medium_trending_safe, max_articles)
+                    future = executor.submit(
+                        self._fetch_medium_trending_safe, max_articles
+                    )
                 elif task_type == "inshorts":
                     future = executor.submit(self._fetch_inshorts_safe, url_or_data)
                 else:
@@ -758,7 +860,9 @@ class ArticleScraper:
                     if articles:
                         with self.articles_lock:
                             all_articles.extend(articles)
-                        logger.info(f"✅ Completed {name}: Added {len(articles)} articles")
+                        logger.info(
+                            f"✅ Completed {name}: Added {len(articles)} articles"
+                        )
                     else:
                         logger.warning(f"⚠️ No articles from {name}")
 
@@ -776,17 +880,19 @@ class ArticleScraper:
         sorted_articles = self._sort_articles(unique_articles)
 
         final_articles = sorted_articles[:target_count]
-        
+
         # Enhance articles with better image coverage
         enhanced_articles = self._enhance_articles_with_images(final_articles)
-        
+
         logger.info(
             f"📋 Final result: {len(enhanced_articles)} unique articles after deduplication, sorting, and image enhancement"
         )
 
         return enhanced_articles
 
-    def _remove_duplicates(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _remove_duplicates(
+        self, articles: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """Remove duplicate articles based on URL and filter invalid articles."""
         unique_articles = []
         seen_urls = set()
@@ -797,14 +903,16 @@ class ArticleScraper:
             if not self._is_valid_article(article):
                 invalid_count += 1
                 continue
-            
+
             url = article.get("url", "")
             if url and url not in seen_urls:
                 seen_urls.add(url)
                 unique_articles.append(article)
 
         duplicates_removed = len(articles) - len(unique_articles) - invalid_count
-        logger.info(f"Removed {duplicates_removed} duplicate articles and {invalid_count} invalid articles")
+        logger.info(
+            f"Removed {duplicates_removed} duplicate articles and {invalid_count} invalid articles"
+        )
         return unique_articles
 
     def _sort_articles(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -836,7 +944,9 @@ class ArticleScraper:
 
         return sorted(articles, key=get_sort_key, reverse=True)
 
-    def save_articles_json(self, articles: List[Dict[str, Any]], filename: str = None) -> str:
+    def save_articles_json(
+        self, articles: List[Dict[str, Any]], filename: str = None
+    ) -> str:
         """Save articles to JSON file."""
         if filename is None:
             filename = f"articles_{datetime.now().strftime('%Y%m%d')}.json"
@@ -862,7 +972,9 @@ class ArticleScraper:
                 print(f"   Tags: {', '.join(article['tags'])}")
             if article["summary"]:
                 summary = article["summary"][:150]
-                print(f"   Summary: {summary}{'...' if len(article['summary']) > 150 else ''}")
+                print(
+                    f"   Summary: {summary}{'...' if len(article['summary']) > 150 else ''}"
+                )
 
     def get_urls_only(self, articles: List[Dict[str, Any]]) -> List[str]:
         """Extract only URLs from articles."""

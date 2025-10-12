@@ -32,17 +32,21 @@ class Config:
     # User agent for requests - Updated to match Chrome 137 (consistent with sec-ch-ua header)
     USER_AGENT = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
 
     # InShorts API configuration - Prioritized for better image coverage
     INSHORTS_API_BASE_URL = "https://inshorts.com/api/en"
     INSHORTS_CATEGORIES = {
-        "top_stories": {"max_limit": 35, "priority": 1},
-        "trending": {"max_limit": 20, "priority": 2},
+        "all_news": {"max_limit": 35, "priority": 1},
+        "top_stories": {"max_limit": 20, "priority": 2},
+        "trending": {"max_limit": 15, "priority": 3},
+        "business": {"max_limit": 10, "priority": 4},
+        "technology": {"max_limit": 10, "priority": 5},
     }
 
     # Headers for InShorts API to avoid bot detection
+    # Based on analysis of actual InShorts website requests
     INSHORTS_HEADERS = {
         "accept": "*/*",
         "accept-language": "en-US,en;q=0.9",
@@ -50,7 +54,8 @@ class Config:
         "content-type": "application/json",
         "dnt": "1",
         "pragma": "no-cache",
-        "sec-ch-ua": '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+        "referer": "https://inshorts.com/en/read",
+        "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "empty",
@@ -68,7 +73,6 @@ class Config:
         "guardian_technology": "https://www.theguardian.com/technology/rss",
         "al_jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
         "reuters_world": "https://www.reutersagency.com/feed/?taxonomy=best-topics&post_type=best",
-        
         # Technology & Innovation - Top Tech Publications
         "techcrunch": "https://techcrunch.com/feed/",
         "wired": "https://www.wired.com/feed/rss",
@@ -76,20 +80,17 @@ class Config:
         "ars_technica": "http://feeds.arstechnica.com/arstechnica/index",
         "engadget": "https://www.engadget.com/rss.xml",
         "cnet": "https://www.cnet.com/rss/news/",
-        
         # Business & Economics - Financial News
         "bloomberg": "https://feeds.bloomberg.com/markets/news.rss",
         "financial_times": "https://www.ft.com/rss/home",
         "forbes": "https://www.forbes.com/real-time/feed2/",
         "economist": "https://www.economist.com/rss",
         "business_insider": "https://www.businessinsider.com/rss",
-        
         # Science & Health - Research and Medical News
         "nature_news": "https://www.nature.com/nature.rss",
         "scientific_american": "http://rss.sciam.com/ScientificAmerican-Global",
         "new_scientist": "https://www.newscientist.com/feed/home/",
         "science_daily": "https://www.sciencedaily.com/rss/all.xml",
-        
         # Regional Perspectives - Diverse Global Sources
         "cnn_international": "http://rss.cnn.com/rss/edition.rss",
         "cnn_technology": "http://rss.cnn.com/rss/edition_technology.rss",
@@ -97,11 +98,9 @@ class Config:
         "france24": "https://www.france24.com/en/rss",
         "japan_times": "https://www.japantimes.co.jp/feed/",
         "south_china_morning_post": "https://www.scmp.com/rss/91/feed",
-        
         # Quality Content Aggregators
         "reddit_worldnews": "https://www.reddit.com/r/worldnews/.rss",
         "hackernews": "https://hnrss.org/frontpage",
-        
         # Specialized Quality Publications
         "mit_tech_review": "https://www.technologyreview.com/feed/",
         "atlantic": "https://www.theatlantic.com/feed/all/",
@@ -112,23 +111,18 @@ class Config:
     MEDIUM_PUBLICATIONS: List[str] = [
         # Data Science & AI
         "https://towardsdatascience.com/feed",
-        
         # Technology & Startups
         "https://medium.com/feed/hackernoon",
         "https://medium.com/feed/the-startup",
         "https://medium.com/feed/better-programming",
-        
         # Business & Leadership
         "https://medium.com/feed/the-mission",
         "https://medium.com/feed/swlh",  # The Startup's publication
-        
         # Personal Development
         "https://medium.com/feed/personal-growth",
         "https://medium.com/feed/thrive-global",
-        
         # Design & UX
         "https://medium.com/feed/ux-collective",
-        
         # Science & Future
         "https://medium.com/feed/predict",
     ]
