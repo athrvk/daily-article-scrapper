@@ -344,28 +344,42 @@ class ArticleScraper:
             soup = BeautifulSoup(response.content, "html.parser")
 
             articles = []
+            seen_urls = set()  # Track URLs to avoid duplicates
             # Medium uses dynamic loading, so we'll try to find article links
             article_links = soup.find_all("a", href=True)
 
             for link in article_links:
                 href = link.get("href", "")
-                if "/p/" in href or "/@" in href:
+                # Only include actual article URLs with /p/ pattern
+                # Exclude user profiles (/@username without /p/)
+                if "/p/" in href:
+                    # Normalize the URL
                     if href.startswith("/"):
                         href = "https://medium.com" + href
                     elif href.startswith("https://medium.com"):
                         pass
                     else:
                         continue
+                    
+                    # Remove query parameters and fragments for deduplication
+                    base_url = href.split('?')[0].split('#')[0]
+                    
+                    # Skip if we've already seen this URL
+                    if base_url in seen_urls:
+                        continue
+                    
+                    seen_urls.add(base_url)
 
                     title = link.get_text(strip=True)
-                    if title and len(title) > 10:  # Filter out short/empty titles
+                    # More strict title validation - should be meaningful article title
+                    if title and len(title) > 20 and len(title) < 200:
                         # Try to extract image from the link's context
                         image_url = self._extract_medium_image(link)
 
                         articles.append(
                             {
                                 "title": title,
-                                "url": href,
+                                "url": base_url,
                                 "published": datetime.now().isoformat(),
                                 "summary": "",
                                 "source": "medium.com",
@@ -622,6 +636,68 @@ class ArticleScraper:
         # return f"https://via.placeholder.com/400x300/4a90e2/ffffff?text={source.upper()}"
         
         return ""
+    
+    def _is_valid_article(self, article: Dict[str, Any]) -> bool:
+        """Validate if an article meets quality criteria."""
+        # Check required fields exist
+        if not article.get('title') or not article.get('url'):
+            logger.debug(f"Article missing required fields: {article.get('title', 'NO_TITLE')[:50]}")
+            return False
+        
+        # Validate title quality
+        title = article['title'].strip()
+        if len(title) < 10:
+            logger.debug(f"Article title too short: {title}")
+            return False
+        
+        if len(title) > 300:
+            logger.debug(f"Article title too long: {title[:50]}...")
+            return False
+        
+        # Check for common non-article titles
+        skip_keywords = [
+            'sign in', 'sign up', 'subscribe', 'newsletter',
+            'cookies', 'privacy policy', 'terms of service',
+            'about us', 'contact us', 'home', 'homepage'
+        ]
+        title_lower = title.lower()
+        if any(keyword in title_lower for keyword in skip_keywords):
+            logger.debug(f"Article title contains skip keyword: {title[:50]}")
+            return False
+        
+        # Validate URL
+        url = article['url'].strip()
+        if not (url.startswith('http://') or url.startswith('https://')):
+            logger.debug(f"Invalid URL format: {url[:50]}")
+            return False
+        
+        # Check for user profile patterns (Medium, etc.)
+        # Allow /@username/article-slug but not just /@username
+        if '/@' in url and '/p/' not in url:
+            # Check if it's just a profile URL (ends with username or has limited path)
+            parsed = urlparse(url)
+            path_parts = [p for p in parsed.path.split('/') if p]
+            # If path is just ['@username'] or ['@username', 'about'] etc, skip it
+            if len(path_parts) <= 2 and path_parts[0].startswith('@'):
+                logger.debug(f"Skipping user profile URL: {url}")
+                return False
+        
+        # Validate source
+        source = article.get('source', '').strip()
+        if not source:
+            logger.debug(f"Article missing source: {article.get('title', 'NO_TITLE')[:50]}")
+            return False
+        
+        # Check URL is not too long (might indicate malformed URLs)
+        if len(url) > 500:
+            logger.debug(f"URL too long: {url[:50]}...")
+            return False
+        
+        # Ensure article has some content indicators
+        # At minimum, should have title, URL, and source
+        # Image is preferred but not required (will be enhanced later)
+        
+        return True
 
     def scrape_daily_articles(self, target_count: int = None) -> List[Dict[str, Any]]:
         target_count = target_count or self.config.TARGET_ARTICLE_COUNT
@@ -711,17 +787,24 @@ class ArticleScraper:
         return enhanced_articles
 
     def _remove_duplicates(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Remove duplicate articles based on URL."""
+        """Remove duplicate articles based on URL and filter invalid articles."""
         unique_articles = []
         seen_urls = set()
+        invalid_count = 0
 
         for article in articles:
+            # First validate article quality
+            if not self._is_valid_article(article):
+                invalid_count += 1
+                continue
+            
             url = article.get("url", "")
             if url and url not in seen_urls:
                 seen_urls.add(url)
                 unique_articles.append(article)
 
-        logger.info(f"Removed {len(articles) - len(unique_articles)} duplicate articles")
+        duplicates_removed = len(articles) - len(unique_articles) - invalid_count
+        logger.info(f"Removed {duplicates_removed} duplicate articles and {invalid_count} invalid articles")
         return unique_articles
 
     def _sort_articles(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
