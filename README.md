@@ -4,7 +4,9 @@ A Python application that scrapes articles from various tech news sources and st
 
 ## Features
 
-- **Multi-source scraping**: Extracts articles from Medium, TechCrunch, HackerNews, Dev.to, BBC Tech, CNN Tech, Reuters Tech, and more
+- **Multi-source scraping**: Extracts articles from InShorts, Medium, and 30+ RSS feeds including BBC, CNN, TechCrunch, and more
+- **Quality validation**: Filters out non-articles (user profiles, sign-in pages) ensuring only valid articles with proper metadata
+- **Global coverage**: Articles from diverse sources across technology, business, science, and international news
 - **MongoDB integration**: Stores articles with deduplication and indexing
 - **Automatic cleanup**: Removes articles older than 2 months (configurable)
 - **GitHub Actions workflow**: Automated daily scraping via cron jobs
@@ -166,6 +168,9 @@ black src/ config/ main.py
 # Lint code
 flake8 src/ config/ main.py
 
+# Run tests
+pytest tests/ -v
+
 # Check database statistics
 bash scripts/manage.sh stats
 
@@ -176,8 +181,11 @@ bash scripts/manage.sh cleanup
 ### Adding new sources
 
 1. **RSS feeds**: Add to `config/settings.py` in the `RSS_FEEDS` dictionary
-2. **Custom scrapers**: Add methods to `src/scraper.py`
-3. **Configuration**: Update environment variables as needed
+2. **Medium publications**: Add to `MEDIUM_PUBLICATIONS` list in `config/settings.py`
+3. **Custom scrapers**: Add methods to `src/scraper.py`
+4. **Configuration**: Update environment variables as needed
+
+See `ARTICLE_QUALITY_IMPROVEMENTS.md` for details on quality validation and source selection.
 
 ## Database Cleanup
 
@@ -331,3 +339,11 @@ For issues and questions:
 - Beautiful Soup for web scraping
 - MongoDB for data storage
 - GitHub Actions for automation
+
+## Documentation
+
+- `ARTICLE_QUALITY_IMPROVEMENTS.md` - Details on article validation and quality filtering
+- `IMAGE_EXTRACTION_IMPROVEMENTS.md` - Image URL extraction enhancements
+- `INSHORTS_INTEGRATION.md` - InShorts API integration documentation
+- `CLEANUP_GUIDE.md` - Database cleanup guide
+- `PROJECT_OVERVIEW.md` - Overall project architecture
