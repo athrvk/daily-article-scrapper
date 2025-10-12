@@ -15,6 +15,64 @@ class TestArticleScraper:
         assert scraper.config == mock_config
         assert scraper.session is not None
     
+    def test_is_valid_article(self, scraper):
+        """Test article validation."""
+        # Valid article
+        valid_article = {
+            'title': 'This is a valid article title',
+            'url': 'https://example.com/article',
+            'source': 'example.com',
+            'summary': 'Some summary',
+            'image': 'https://example.com/image.jpg'
+        }
+        assert scraper._is_valid_article(valid_article) == True
+        
+        # Missing title
+        invalid_no_title = {
+            'url': 'https://example.com/article',
+            'source': 'example.com'
+        }
+        assert scraper._is_valid_article(invalid_no_title) == False
+        
+        # Missing URL
+        invalid_no_url = {
+            'title': 'Test Article',
+            'source': 'example.com'
+        }
+        assert scraper._is_valid_article(invalid_no_url) == False
+        
+        # Title too short
+        invalid_short_title = {
+            'title': 'Short',
+            'url': 'https://example.com/article',
+            'source': 'example.com'
+        }
+        assert scraper._is_valid_article(invalid_short_title) == False
+        
+        # User profile URL (Medium style)
+        invalid_profile_url = {
+            'title': 'Valid Title Here',
+            'url': 'https://medium.com/@username',
+            'source': 'medium.com'
+        }
+        assert scraper._is_valid_article(invalid_profile_url) == False
+        
+        # Valid Medium article URL with /p/
+        valid_medium_article = {
+            'title': 'Valid Medium Article Title',
+            'url': 'https://medium.com/@username/article-slug-12345/p/abcd1234',
+            'source': 'medium.com'
+        }
+        assert scraper._is_valid_article(valid_medium_article) == True
+        
+        # Skip keyword in title
+        invalid_skip_keyword = {
+            'title': 'Sign in to continue',
+            'url': 'https://example.com/signin',
+            'source': 'example.com'
+        }
+        assert scraper._is_valid_article(invalid_skip_keyword) == False
+    
     def test_remove_duplicates(self, scraper, sample_articles):
         """Test duplicate removal functionality."""
         # Add a duplicate article
@@ -24,6 +82,31 @@ class TestArticleScraper:
         
         assert len(unique_articles) == 2
         assert unique_articles == sample_articles
+    
+    def test_remove_duplicates_filters_invalid(self, scraper):
+        """Test that duplicate removal also filters invalid articles."""
+        articles = [
+            {
+                'title': 'Valid Article Title',
+                'url': 'https://example.com/article1',
+                'source': 'example.com'
+            },
+            {
+                'title': 'Short',  # Invalid - too short
+                'url': 'https://example.com/article2',
+                'source': 'example.com'
+            },
+            {
+                'title': 'Sign up for our newsletter',  # Invalid - skip keyword
+                'url': 'https://example.com/article3',
+                'source': 'example.com'
+            }
+        ]
+        
+        unique_articles = scraper._remove_duplicates(articles)
+        
+        assert len(unique_articles) == 1
+        assert unique_articles[0]['title'] == 'Valid Article Title'
     
     def test_get_urls_only(self, scraper, sample_articles):
         """Test URL extraction."""
@@ -261,4 +344,58 @@ class TestArticleScraper:
         topics = scraper.get_inshorts_trending_topics()
         
         assert topics == []
+        mock_get.assert_called_once()
+    
+    @patch('src.scraper.requests.Session.get')
+    def test_scrape_medium_trending(self, mock_get, scraper):
+        """Test Medium trending article scraping."""
+        # Mock Medium page response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b'''
+        <html>
+            <body>
+                <a href="/p/article-one-12345">This is a great article title here</a>
+                <a href="/@username">Just a profile</a>
+                <a href="/p/article-two-67890">Another excellent article title</a>
+            </body>
+        </html>
+        '''
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+        
+        articles = scraper.scrape_medium_trending(max_articles=5)
+        
+        # Should only get actual articles (with /p/), not profiles
+        assert len(articles) == 2
+        for article in articles:
+            assert '/p/' in article['url']
+            assert '/@' not in article['url'] or '/p/' in article['url']
+            assert len(article['title']) > 20  # Should have meaningful titles
+        mock_get.assert_called_once()
+    
+    @patch('src.scraper.requests.Session.get')
+    def test_scrape_medium_trending_deduplication(self, mock_get, scraper):
+        """Test that Medium scraping removes duplicate URLs."""
+        # Mock Medium page with duplicate article links
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b'''
+        <html>
+            <body>
+                <a href="/p/article-one-12345?source=homepage">This is a great article title here</a>
+                <a href="/p/article-one-12345">This is a great article title here</a>
+                <a href="/p/article-two-67890">Another excellent article title</a>
+            </body>
+        </html>
+        '''
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+        
+        articles = scraper.scrape_medium_trending(max_articles=5)
+        
+        # Should deduplicate articles with same base URL
+        assert len(articles) == 2
+        urls = [article['url'] for article in articles]
+        assert len(urls) == len(set(urls))  # All URLs should be unique
         mock_get.assert_called_once()

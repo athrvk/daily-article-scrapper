@@ -61,48 +61,74 @@ class Config:
 
     # RSS feeds configuration - Global current affairs and trending topics
     RSS_FEEDS: Dict[str, str] = {
-        # Global News Sources (Working)
+        # Global News Sources - Major International Outlets
         "bbc_world": "http://feeds.bbci.co.uk/news/world/rss.xml",
+        "bbc_technology": "http://feeds.bbci.co.uk/news/technology/rss.xml",
         "guardian_world": "https://www.theguardian.com/world/rss",
+        "guardian_technology": "https://www.theguardian.com/technology/rss",
         "al_jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
-        "the_hindu": "https://www.thehindu.com/news/international/feeder/default.rss",
-        "the_hindu": "https://www.thehindu.com/feeder/default.rss",
-        # Technology & Innovation (Working)
+        "reuters_world": "https://www.reutersagency.com/feed/?taxonomy=best-topics&post_type=best",
+        
+        # Technology & Innovation - Top Tech Publications
         "techcrunch": "https://techcrunch.com/feed/",
         "wired": "https://www.wired.com/feed/rss",
         "the_verge": "https://www.theverge.com/rss/index.xml",
         "ars_technica": "http://feeds.arstechnica.com/arstechnica/index",
-        # Business & Economics (Working)
+        "engadget": "https://www.engadget.com/rss.xml",
+        "cnet": "https://www.cnet.com/rss/news/",
+        
+        # Business & Economics - Financial News
         "bloomberg": "https://feeds.bloomberg.com/markets/news.rss",
         "financial_times": "https://www.ft.com/rss/home",
         "forbes": "https://www.forbes.com/real-time/feed2/",
-        # Science & Health (Working)
+        "economist": "https://www.economist.com/rss",
+        "business_insider": "https://www.businessinsider.com/rss",
+        
+        # Science & Health - Research and Medical News
         "nature_news": "https://www.nature.com/nature.rss",
         "scientific_american": "http://rss.sciam.com/ScientificAmerican-Global",
         "new_scientist": "https://www.newscientist.com/feed/home/",
-        "who_news": "https://www.who.int/rss-feeds/news-english.xml",
-        # Culture & Society (Working)
-        "medium_trending": "https://medium.com/feed/tag/trending",
-        "medium_culture": "https://medium.com/feed/tag/culture",
-        "npr_news": "https://feeds.npr.org/1001/rss.xml",
-        # Regional Perspectives (Working)
+        "science_daily": "https://www.sciencedaily.com/rss/all.xml",
+        
+        # Regional Perspectives - Diverse Global Sources
         "cnn_international": "http://rss.cnn.com/rss/edition.rss",
+        "cnn_technology": "http://rss.cnn.com/rss/edition_technology.rss",
         "dw_english": "https://rss.dw.com/rdf/rss-en-all",
         "france24": "https://www.france24.com/en/rss",
-        "rt_news": "https://www.rt.com/rss/news/",
-        "china_daily": "http://www.chinadaily.com.cn/rss/world_rss.xml",
-        # Social & Trending (Working)
+        "japan_times": "https://www.japantimes.co.jp/feed/",
+        "south_china_morning_post": "https://www.scmp.com/rss/91/feed",
+        
+        # Quality Content Aggregators
         "reddit_worldnews": "https://www.reddit.com/r/worldnews/.rss",
         "hackernews": "https://hnrss.org/frontpage",
+        
+        # Specialized Quality Publications
+        "mit_tech_review": "https://www.technologyreview.com/feed/",
+        "atlantic": "https://www.theatlantic.com/feed/all/",
+        "national_geographic": "https://www.nationalgeographic.com/pages/topic/latest-stories/_jcr_content.feed",
     }
 
     # Medium publication feeds - Diverse topics and global perspectives (Working feeds only)
     MEDIUM_PUBLICATIONS: List[str] = [
+        # Data Science & AI
         "https://towardsdatascience.com/feed",
+        
+        # Technology & Startups
         "https://medium.com/feed/hackernoon",
         "https://medium.com/feed/the-startup",
         "https://medium.com/feed/better-programming",
+        
+        # Business & Leadership
         "https://medium.com/feed/the-mission",
+        "https://medium.com/feed/swlh",  # The Startup's publication
+        
+        # Personal Development
         "https://medium.com/feed/personal-growth",
         "https://medium.com/feed/thrive-global",
+        
+        # Design & UX
+        "https://medium.com/feed/ux-collective",
+        
+        # Science & Future
+        "https://medium.com/feed/predict",
     ]
