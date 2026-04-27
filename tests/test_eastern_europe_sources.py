@@ -12,7 +12,7 @@ EASTERN_EUROPE_FEEDS = [
     "moscow_times",
     "meduza_en",
     "kyiv_independent",
-    "rferl",
+    "politico_europe",
     "notes_from_poland",
     "emerging_europe",
     "balkan_insight",

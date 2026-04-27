@@ -109,13 +109,13 @@ class Config:
         "moscow_times": "https://www.themoscowtimes.com/rss/news",
         "meduza_en": "https://meduza.io/rss/en/all",
         "kyiv_independent": "https://kyivindependent.com/feed/",
-        "rferl": "https://www.rferl.org/api/zypiqisvuqe",
+        "politico_europe": "https://www.politico.eu/feed/",
         "notes_from_poland": "https://notesfrompoland.com/feed/",
         "emerging_europe": "https://emerging-europe.com/feed/",
         "balkan_insight": "https://balkaninsight.com/feed/",
         "intellinews": "https://www.intellinews.com/rss/",
         "euromaidanpress": "https://euromaidanpress.com/feed/",
-        "novaya_gazeta_europe": "https://novayagazeta.eu/feed/en",
+        "novaya_gazeta_europe": "https://novayagazeta.eu/feed/",
     }
 
     # Medium publication feeds - Diverse topics and global perspectives (Working feeds only)
