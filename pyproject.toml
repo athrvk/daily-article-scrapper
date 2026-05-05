@@ -35,3 +35,6 @@ python_files = [
     "test_*.py",
     "*_test.py",
 ]
+markers = [
+    "live: marks tests as requiring live network access (deselect with '-m not live')",
+]
