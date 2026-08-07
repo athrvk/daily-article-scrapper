@@ -188,12 +188,10 @@ class TestArticleScraper:
 
     @patch("src.scraper.time.sleep")
     @patch.object(ArticleScraper, "get_rss_articles")
-    @patch.object(ArticleScraper, "scrape_medium_trending")
     @patch.object(ArticleScraper, "scrape_inshorts_articles")
     def test_scrape_daily_articles(
         self,
         mock_inshorts,
-        mock_trending,
         mock_rss,
         mock_sleep,
         scraper,
@@ -201,7 +199,6 @@ class TestArticleScraper:
     ):
         """Test daily article scraping."""
         mock_rss.return_value = [sample_articles[0]]
-        mock_trending.return_value = [sample_articles[1]]
         mock_inshorts.return_value = [
             {
                 "title": "InShorts Test Article",
@@ -349,58 +346,4 @@ class TestArticleScraper:
         topics = scraper.get_inshorts_trending_topics()
 
         assert topics == []
-        mock_get.assert_called_once()
-
-    @patch("src.scraper.requests.Session.get")
-    def test_scrape_medium_trending(self, mock_get, scraper):
-        """Test Medium trending article scraping."""
-        # Mock Medium page response
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.content = b"""
-        <html>
-            <body>
-                <a href="/p/article-one-12345">This is a great article title here</a>
-                <a href="/@username">Just a profile</a>
-                <a href="/p/article-two-67890">Another excellent article title</a>
-            </body>
-        </html>
-        """
-        mock_response.raise_for_status.return_value = None
-        mock_get.return_value = mock_response
-
-        articles = scraper.scrape_medium_trending(max_articles=5)
-
-        # Should only get actual articles (with /p/), not profiles
-        assert len(articles) == 2
-        for article in articles:
-            assert "/p/" in article["url"]
-            assert "/@" not in article["url"] or "/p/" in article["url"]
-            assert len(article["title"]) > 20  # Should have meaningful titles
-        mock_get.assert_called_once()
-
-    @patch("src.scraper.requests.Session.get")
-    def test_scrape_medium_trending_deduplication(self, mock_get, scraper):
-        """Test that Medium scraping removes duplicate URLs."""
-        # Mock Medium page with duplicate article links
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.content = b"""
-        <html>
-            <body>
-                <a href="/p/article-one-12345?source=homepage">This is a great article title here</a>
-                <a href="/p/article-one-12345">This is a great article title here</a>
-                <a href="/p/article-two-67890">Another excellent article title</a>
-            </body>
-        </html>
-        """
-        mock_response.raise_for_status.return_value = None
-        mock_get.return_value = mock_response
-
-        articles = scraper.scrape_medium_trending(max_articles=5)
-
-        # Should deduplicate articles with same base URL
-        assert len(articles) == 2
-        urls = [article["url"] for article in articles]
-        assert len(urls) == len(set(urls))  # All URLs should be unique
         mock_get.assert_called_once()

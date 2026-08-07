@@ -71,8 +71,12 @@ jobs:
     - name: Test MongoDB connection
       env:
         MONGODB_URI: ${{ secrets.MONGODB_URI }}
-        MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
-        MONGODB_COLLECTION: ${{ secrets.MONGODB_COLLECTION }}
+        # Database/collection names are not sensitive - define them as
+        # repository *variables* (Settings -> Secrets and variables ->
+        # Actions -> Variables) so logs stop masking the word they contain;
+        # secrets remain as a fallback until the variables are set.
+        MONGODB_DATABASE: ${{ vars.MONGODB_DATABASE || secrets.MONGODB_DATABASE }}
+        MONGODB_COLLECTION: ${{ vars.MONGODB_COLLECTION || secrets.MONGODB_COLLECTION }}
       run: |
         echo "🔍 Testing MongoDB connection..."
         python -c "
@@ -114,8 +118,12 @@ jobs:
     - name: Run article scraper
       env:
         MONGODB_URI: ${{ secrets.MONGODB_URI }}
-        MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
-        MONGODB_COLLECTION: ${{ secrets.MONGODB_COLLECTION }}
+        # Database/collection names are not sensitive - define them as
+        # repository *variables* (Settings -> Secrets and variables ->
+        # Actions -> Variables) so logs stop masking the word they contain;
+        # secrets remain as a fallback until the variables are set.
+        MONGODB_DATABASE: ${{ vars.MONGODB_DATABASE || secrets.MONGODB_DATABASE }}
+        MONGODB_COLLECTION: ${{ vars.MONGODB_COLLECTION || secrets.MONGODB_COLLECTION }}
         TARGET_ARTICLE_COUNT: ${{ inputs.target_count || '50' }}
         LOG_LEVEL: ${{ inputs.log_level || 'INFO' }}
         AUTO_CLEANUP_ENABLED: true
