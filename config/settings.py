@@ -29,20 +29,21 @@ class Config:
     AUTO_CLEANUP_ENABLED = os.getenv("AUTO_CLEANUP_ENABLED", "true").lower() == "true"
     CLEANUP_MONTHS_OLD = int(os.getenv("CLEANUP_MONTHS_OLD", "2"))
 
-    # User agent for requests - Updated to match Chrome 137 (consistent with sec-ch-ua header)
+    # User agent for requests - Chrome 120 (consistent with sec-ch-ua header)
     USER_AGENT = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
 
-    # InShorts API configuration - Prioritized for better image coverage
+    # InShorts API configuration - good image coverage, but content is
+    # India-centric, so quotas are kept small relative to the RSS sources
     INSHORTS_API_BASE_URL = "https://inshorts.com/api/en"
     INSHORTS_CATEGORIES = {
-        "all_news": {"max_limit": 35, "priority": 1},
-        "top_stories": {"max_limit": 20, "priority": 2},
-        "trending": {"max_limit": 15, "priority": 3},
-        "business": {"max_limit": 10, "priority": 4},
-        "technology": {"max_limit": 10, "priority": 5},
+        "all_news": {"max_limit": 10, "priority": 1},
+        "top_stories": {"max_limit": 5, "priority": 2},
+        "trending": {"max_limit": 5, "priority": 3},
+        "business": {"max_limit": 5, "priority": 4},
+        "technology": {"max_limit": 5, "priority": 5},
     }
 
     # Headers for InShorts API to avoid bot detection
@@ -72,25 +73,59 @@ class Config:
         "guardian_world": "https://www.theguardian.com/world/rss",
         "guardian_technology": "https://www.theguardian.com/technology/rss",
         "al_jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
-        "reuters_world": "https://www.reutersagency.com/feed/?taxonomy=best-topics&post_type=best",
+        "independent_world": "https://www.independent.co.uk/news/world/rss",
+        "sky_news_world": "https://feeds.skynews.com/feeds/rss/world.xml",
+        "euronews": "https://www.euronews.com/rss",
+        "un_news": "https://news.un.org/feed/subscribe/en/news/all/rss.xml",
+        "time": "https://time.com/feed/",
+        # US National News - Major Outlets
+        "nytimes": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+        "washington_post": "https://feeds.washingtonpost.com/rss/national",
+        "nbc_news": "https://feeds.nbcnews.com/nbcnews/public/news",
+        "cbs_news": "https://www.cbsnews.com/latest/rss/main",
+        "abc_news_us": "https://abcnews.go.com/abcnews/topstories",
+        "fox_news": "https://moxie.foxnews.com/google-publisher/latest.xml",
+        "politico": "https://rss.politico.com/politics-news.xml",
+        "axios": "https://api.axios.com/feed/",
+        "the_hill": "https://thehill.com/news/feed/",
+        "la_times": "https://www.latimes.com/rss2.0.xml",
         # Technology & Innovation - Top Tech Publications
         "techcrunch": "https://techcrunch.com/feed/",
         "wired": "https://www.wired.com/feed/rss",
         "the_verge": "https://www.theverge.com/rss/index.xml",
-        "ars_technica": "http://feeds.arstechnica.com/arstechnica/index",
+        "ars_technica": "https://arstechnica.com/feed/",
+        # NOTE: engadget blocks non-browser clients (HTTP 403) from
+        # datacenter IPs; kept in case it works from other networks
         "engadget": "https://www.engadget.com/rss.xml",
         "cnet": "https://www.cnet.com/rss/news/",
+        "the_register": "https://www.theregister.com/headlines.rss",
+        "zdnet": "https://www.zdnet.com/news/rss.xml",
+        "venturebeat": "https://venturebeat.com/feed/",
+        "slashdot": "https://rss.slashdot.org/Slashdot/slashdotMain",
+        "ieee_spectrum": "https://spectrum.ieee.org/feeds/feed.rss",
+        "techradar": "https://www.techradar.com/rss",
         # Business & Economics - Financial News
         "bloomberg": "https://feeds.bloomberg.com/markets/news.rss",
         "financial_times": "https://www.ft.com/rss/home",
-        "forbes": "https://www.forbes.com/real-time/feed2/",
-        "economist": "https://www.economist.com/rss",
+        "forbes": "https://www.forbes.com/innovation/feed2/",
+        "economist": "https://www.economist.com/latest/rss.xml",
         "business_insider": "https://www.businessinsider.com/rss",
+        "cnbc": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114",
+        "marketwatch": "https://feeds.content.dowjones.io/public/rss/mw_topstories",
+        "fortune": "https://fortune.com/feed/",
         # Science & Health - Research and Medical News
         "nature_news": "https://www.nature.com/nature.rss",
         "scientific_american": "http://rss.sciam.com/ScientificAmerican-Global",
+        # NOTE: newscientist.com rejects non-browser clients (HTTP 406);
+        # kept in case it works from other networks
         "new_scientist": "https://www.newscientist.com/feed/home/",
         "science_daily": "https://www.sciencedaily.com/rss/all.xml",
+        "phys_org": "https://phys.org/rss-feed/",
+        "live_science": "https://www.livescience.com/feeds/all",
+        "quanta_magazine": "https://api.quantamagazine.org/feed/",
+        "stat_news": "https://www.statnews.com/feed/",
+        "space_com": "https://www.space.com/feeds/all",
+        "smithsonian": "https://www.smithsonianmag.com/rss/latest_articles/",
         # Regional Perspectives - Diverse Global Sources
         "cnn_international": "http://rss.cnn.com/rss/edition.rss",
         "cnn_technology": "http://rss.cnn.com/rss/edition_technology.rss",
@@ -98,24 +133,43 @@ class Config:
         "france24": "https://www.france24.com/en/rss",
         "japan_times": "https://www.japantimes.co.jp/feed/",
         "south_china_morning_post": "https://www.scmp.com/rss/91/feed",
+        "abc_australia": "https://www.abc.net.au/news/feed/51120/rss.xml",
+        "nikkei_asia": "https://asia.nikkei.com/rss/feed/nar",
+        "yonhap_korea": "https://en.yna.co.kr/RSS/news.xml",
+        "the_hindu": "https://www.thehindu.com/news/national/feeder/default.rss",
+        "times_of_india": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms",
+        "ndtv": "https://feeds.feedburner.com/ndtvnews-top-stories",
+        "mercopress": "https://en.mercopress.com/rss/",
+        "allafrica": "https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf",
         # Quality Content Aggregators
         "reddit_worldnews": "https://www.reddit.com/r/worldnews/.rss",
         "hackernews": "https://hnrss.org/frontpage",
         # Specialized Quality Publications
         "mit_tech_review": "https://www.technologyreview.com/feed/",
+        # NOTE: theatlantic.com serves this feed to browsers but returns 403
+        # to non-browser clients; kept in case it works from other networks
         "atlantic": "https://www.theatlantic.com/feed/all/",
-        "national_geographic": "https://www.nationalgeographic.com/pages/topic/latest-stories/_jcr_content.feed",
         # Eastern Europe, Russia & Belarus - Independent & Regional Sources
         "moscow_times": "https://www.themoscowtimes.com/rss/news",
         "meduza_en": "https://meduza.io/rss/en/all",
-        "kyiv_independent": "https://kyivindependent.com/feed/",
+        "kyiv_independent": "https://kyivindependent.com/news-archive/rss/",
         "politico_europe": "https://www.politico.eu/feed/",
         "notes_from_poland": "https://notesfrompoland.com/feed/",
         "emerging_europe": "https://emerging-europe.com/feed/",
         "balkan_insight": "https://balkaninsight.com/feed/",
-        "intellinews": "https://www.intellinews.com/rss/",
+        "intellinews": "https://www.intellinews.com/feed",
         "euromaidanpress": "https://euromaidanpress.com/feed/",
-        "novaya_gazeta_europe": "https://novayagazeta.eu/feed/",
+        "novaya_gazeta_europe": "https://novayagazeta.eu/feed/rss/en",
+        # Russia - Independent outlets (Russian-language)
+        "meduza_ru": "https://meduza.io/rss/all",
+        "novaya_gazeta_ru": "https://novayagazeta.eu/feed/rss",
+        "the_bell_en": "https://en.thebell.io/feed",
+        "the_bell_ru": "https://thebell.io/feed",
+        # Russia - Mainstream dailies and wires (Russian-language)
+        "kommersant": "https://www.kommersant.ru/RSS/news.xml",
+        "rbc": "https://rssexport.rbc.ru/rbcnews/news/30/full.rss",
+        "vedomosti": "https://www.vedomosti.ru/rss/news",
+        "interfax_ru": "https://www.interfax.ru/rss.asp",
     }
 
     # Medium publication feeds - Diverse topics and global perspectives (Working feeds only)
@@ -132,8 +186,8 @@ class Config:
         # Personal Development
         "https://medium.com/feed/personal-growth",
         "https://medium.com/feed/thrive-global",
-        # Design & UX
-        "https://medium.com/feed/ux-collective",
+        # Design & UX (UX Collective publishes via its custom domain)
+        "https://uxdesign.cc/feed",
         # Science & Future
         "https://medium.com/feed/predict",
     ]

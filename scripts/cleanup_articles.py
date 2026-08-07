@@ -7,8 +7,7 @@ Purges articles older than specified months from MongoDB
 import os
 import sys
 import logging
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime, timedelta, timezone
 
 # Add the project paths
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,6 +26,27 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _scraped_before(cutoff: datetime) -> dict:
+    """Filter for scraped_at older than cutoff.
+
+    scraped_at is a BSON date, but documents written by older versions stored
+    it as a naive ISO string; MongoDB comparisons are type-bracketed, so both
+    representations must be matched explicitly.
+    """
+    return {"$or": [
+        {"scraped_at": {"$lt": cutoff}},
+        {"scraped_at": {"$lt": cutoff.replace(tzinfo=None).isoformat()}},
+    ]}
+
+
+def _scraped_since(cutoff: datetime) -> dict:
+    """Filter for scraped_at newer than cutoff (both date and string types)."""
+    return {"$or": [
+        {"scraped_at": {"$gte": cutoff}},
+        {"scraped_at": {"$gte": cutoff.replace(tzinfo=None).isoformat()}},
+    ]}
 
 
 class ArticleCleaner:
@@ -50,16 +70,16 @@ class ArticleCleaner:
         """
         try:
             # Calculate cutoff date
-            cutoff_date = datetime.utcnow() - timedelta(days=months_old * 30)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=months_old * 30)
             logger.info(f"Purging articles older than {cutoff_date.strftime('%Y-%m-%d')}")
-            
+
             # Connect to database
             if not self.db_manager.connect():
                 logger.error("Failed to connect to database")
                 return {"success": False, "error": "Database connection failed"}
-            
+
             # Count articles to be deleted
-            filter_query = {"scraped_at": {"$lt": cutoff_date}}
+            filter_query = _scraped_before(cutoff_date)
             articles_count = self.db_manager.collection.count_documents(filter_query)
             
             if articles_count == 0:
@@ -132,24 +152,21 @@ class ArticleCleaner:
             total_count = self.db_manager.get_article_count()
             
             # Count by time periods
-            now = datetime.utcnow()
-            
+            now = datetime.now(timezone.utc)
+
             # Last 7 days
-            week_ago = now - timedelta(days=7)
             last_week_count = self.db_manager.collection.count_documents(
-                {"scraped_at": {"$gte": week_ago}}
+                _scraped_since(now - timedelta(days=7))
             )
-            
+
             # Last 30 days
-            month_ago = now - timedelta(days=30)
             last_month_count = self.db_manager.collection.count_documents(
-                {"scraped_at": {"$gte": month_ago}}
+                _scraped_since(now - timedelta(days=30))
             )
-            
+
             # Older than 2 months
-            two_months_ago = now - timedelta(days=60)
             old_articles_count = self.db_manager.collection.count_documents(
-                {"scraped_at": {"$lt": two_months_ago}}
+                _scraped_before(now - timedelta(days=60))
             )
             
             # Sources breakdown

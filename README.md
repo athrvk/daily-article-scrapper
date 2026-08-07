@@ -22,7 +22,8 @@ A Python application that scrapes articles from various tech news sources and st
 daily-article-scrapper/
 ├── .github/
 │   └── workflows/
-│       └── daily-scraper.yml      # GitHub Actions workflow
+│       ├── ci.yml                 # Tests and linting on pull requests
+│       └── daily-scraper.yml      # Scheduled scraping workflow
 ├── config/
 │   ├── __init__.py
 │   └── settings.py                # Configuration settings
@@ -36,13 +37,13 @@ daily-article-scrapper/
 │   ├── manage.sh                 # Project management
 │   ├── status_check.py           # Health monitoring
 │   └── cleanup_articles.py       # Database cleanup
+├── docs/                         # Additional documentation
 ├── logs/                         # Log files (created at runtime)
 ├── .env.example                  # Environment variables template
 ├── .gitignore                    # Git ignore file
 ├── main.py                       # Main application entry point
 ├── requirements.txt              # Production dependencies
 ├── requirements-dev.txt          # Development dependencies
-├── CLEANUP_GUIDE.md              # Database cleanup documentation
 └── README.md                     # This file
 ```
 
@@ -185,7 +186,7 @@ bash scripts/manage.sh cleanup
 3. **Custom scrapers**: Add methods to `src/scraper.py`
 4. **Configuration**: Update environment variables as needed
 
-See `ARTICLE_QUALITY_IMPROVEMENTS.md` for details on quality validation and source selection.
+See `docs/ARTICLE_QUALITY_IMPROVEMENTS.md` for details on quality validation and source selection.
 
 ## Database Cleanup
 
@@ -225,7 +226,7 @@ AUTO_CLEANUP_ENABLED=true    # Enable/disable automatic cleanup
 CLEANUP_MONTHS_OLD=2         # Keep articles for 2 months
 ```
 
-For detailed cleanup documentation, see `CLEANUP_GUIDE.md`.
+For detailed cleanup documentation, see `docs/CLEANUP_GUIDE.md`.
 
 ## API Documentation
 
@@ -258,16 +259,20 @@ Articles are stored with the following structure:
 
 ```json
 {
-  "_id": "https://example.com/article_20250706",
+  "_id": "9b2f6c1d8e3a4f70",
   "title": "Article Title",
   "url": "https://example.com/article",
-  "published": "2025-07-06T10:30:00Z",
+  "published": "2025-07-06T10:30:00+00:00",
   "summary": "Article summary text",
   "source": "techcrunch.com",
   "tags": ["technology", "ai"],
-  "scraped_at": "2025-07-06T13:22:46.123Z"
+  "scraped_at": {"$date": "2025-07-06T13:22:46.123Z"}
 }
 ```
+
+The `_id` is a hash of the article URL, and articles are upserted on URL so
+re-scraping the same article updates the existing document. `scraped_at` is
+stored as a native BSON date.
 
 ## Monitoring and Logs
 
@@ -342,8 +347,8 @@ For issues and questions:
 
 ## Documentation
 
-- `ARTICLE_QUALITY_IMPROVEMENTS.md` - Details on article validation and quality filtering
-- `IMAGE_EXTRACTION_IMPROVEMENTS.md` - Image URL extraction enhancements
-- `INSHORTS_INTEGRATION.md` - InShorts API integration documentation
-- `CLEANUP_GUIDE.md` - Database cleanup guide
-- `PROJECT_OVERVIEW.md` - Overall project architecture
+- `docs/ARTICLE_QUALITY_IMPROVEMENTS.md` - Details on article validation and quality filtering
+- `docs/IMAGE_EXTRACTION_IMPROVEMENTS.md` - Image URL extraction enhancements
+- `docs/INSHORTS_INTEGRATION.md` - InShorts API integration documentation
+- `docs/CLEANUP_GUIDE.md` - Database cleanup guide
+- `docs/PROJECT_OVERVIEW.md` - Overall project architecture
