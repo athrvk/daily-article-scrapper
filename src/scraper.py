@@ -6,7 +6,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 import json
-import re
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import time
@@ -217,14 +216,51 @@ class ArticleScraper:
 
             # Quick check for common news domains that are likely to have meta tags
             trusted_domains = [
+                # Global / UK
                 "bbc.com",
                 "cnn.com",
-                "reuters.com",
+                "theguardian.com",
+                "aljazeera.com",
+                "independent.co.uk",
+                "news.sky.com",
+                "euronews.com",
+                "time.com",
+                # US national
+                "nytimes.com",
+                "washingtonpost.com",
+                "nbcnews.com",
+                "cbsnews.com",
+                "abcnews.go.com",
+                "foxnews.com",
+                "politico.com",
+                "axios.com",
+                "thehill.com",
+                "latimes.com",
+                # Tech & business
                 "bloomberg.com",
                 "techcrunch.com",
                 "theverge.com",
                 "wired.com",
                 "forbes.com",
+                "arstechnica.com",
+                "cnet.com",
+                "zdnet.com",
+                "venturebeat.com",
+                "theregister.com",
+                "spectrum.ieee.org",
+                "cnbc.com",
+                "marketwatch.com",
+                "fortune.com",
+                # Russia & Eastern Europe
+                "meduza.io",
+                "novayagazeta.eu",
+                "thebell.io",
+                "kommersant.ru",
+                "rbc.ru",
+                "vedomosti.ru",
+                "interfax.ru",
+                "themoscowtimes.com",
+                "kyivindependent.com",
             ]
 
             if not any(domain in page_url.lower() for domain in trusted_domains):
@@ -263,71 +299,6 @@ class ArticleScraper:
 
         except Exception as e:
             logger.debug(f"Error extracting image from webpage {page_url}: {e}")
-            return ""
-
-    def _extract_medium_image(self, link_element) -> str:
-        """Extract image URL from Medium article link context with enhanced methods."""
-        try:
-            # Look for nearby img elements in the same container
-            parent = link_element.parent
-            if parent:
-                # Look for img tags in the parent container and siblings
-                for container in [parent, parent.parent] if parent.parent else [parent]:
-                    if not container:
-                        continue
-
-                    # Look for img tags in the container
-                    img = container.find("img")
-                    if img:
-                        # Check src attribute
-                        if img.get("src"):
-                            src = img["src"]
-                            if self._is_valid_image_url(src):
-                                return self._normalize_image_url(src)
-
-                        # Check data-src for lazy loading
-                        if img.get("data-src"):
-                            src = img["data-src"]
-                            if self._is_valid_image_url(src):
-                                return self._normalize_image_url(src)
-
-                        # Check srcset
-                        if img.get("srcset"):
-                            srcset = img["srcset"]
-                            urls = srcset.split(",")
-                            if urls:
-                                first_url = urls[0].strip().split(" ")[0]
-                                if self._is_valid_image_url(first_url):
-                                    return self._normalize_image_url(first_url)
-
-                # Look for background images in style attributes
-                for element in container.find_all(
-                    ["div", "span", "section", "article"], style=True
-                ):
-                    style = element.get("style", "")
-                    if "background-image" in style:
-                        # Extract URL from background-image: url(...)
-                        match = re.search(r'url\(["\']?(.*?)["\']?\)', style)
-                        if match:
-                            img_url = match.group(1)
-                            if self._is_valid_image_url(img_url):
-                                return self._normalize_image_url(img_url)
-
-                # Look for picture elements (responsive images)
-                picture = container.find("picture")
-                if picture:
-                    source = picture.find("source")
-                    if source and source.get("srcset"):
-                        srcset = source["srcset"]
-                        urls = srcset.split(",")
-                        if urls:
-                            first_url = urls[0].strip().split(" ")[0]
-                            if self._is_valid_image_url(first_url):
-                                return self._normalize_image_url(first_url)
-
-            return ""
-        except Exception as e:
-            logger.debug(f"Error extracting Medium image: {e}")
             return ""
 
     def get_rss_articles(
@@ -381,70 +352,6 @@ class ArticleScraper:
             logger.error(f"Error fetching RSS feed {feed_url}: {str(e)}")
             return []
 
-    def scrape_medium_trending(self, max_articles: int = 5) -> List[Dict[str, Any]]:
-        """Scrape Medium trending articles."""
-        try:
-            url = "https://medium.com/tag/trending"
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.content, "html.parser")
-
-            articles = []
-            seen_urls = set()  # Track URLs to avoid duplicates
-            # Medium uses dynamic loading, so we'll try to find article links
-            article_links = soup.find_all("a", href=True)
-
-            for link in article_links:
-                href = link.get("href", "")
-                # Only include actual article URLs with /p/ pattern
-                # Exclude user profiles (/@username without /p/)
-                if "/p/" in href:
-                    # Normalize the URL
-                    if href.startswith("/"):
-                        href = "https://medium.com" + href
-                    elif href.startswith("https://medium.com"):
-                        pass
-                    else:
-                        continue
-
-                    # Remove query parameters and fragments for deduplication
-                    base_url = href.split("?")[0].split("#")[0]
-
-                    # Skip if we've already seen this URL
-                    if base_url in seen_urls:
-                        continue
-
-                    seen_urls.add(base_url)
-
-                    title = link.get_text(strip=True)
-                    # More strict title validation - should be meaningful article title
-                    if title and len(title) > 20 and len(title) < 200:
-                        # Try to extract image from the link's context
-                        image_url = self._extract_medium_image(link)
-
-                        articles.append(
-                            {
-                                "title": title,
-                                "url": base_url,
-                                "published": datetime.now(timezone.utc).isoformat(),
-                                "summary": "",
-                                "source": "medium.com",
-                                "tags": ["trending"],
-                                "image": image_url,
-                            }
-                        )
-
-                        if len(articles) >= max_articles:
-                            break
-
-            logger.info(f"Scraped {len(articles)} trending articles from Medium")
-            return articles
-
-        except Exception as e:
-            logger.error(f"Error scraping Medium trending: {str(e)}")
-            return []
-
     def _fetch_rss_feed_safe(self, feed_info: tuple) -> List[Dict[str, Any]]:
         """Thread-safe wrapper for RSS feed fetching."""
         feed_name, feed_url, max_articles = feed_info
@@ -456,18 +363,6 @@ class ArticleScraper:
 
         except Exception as e:
             logger.error(f"❌ Error processing feed {feed_name}: {e}")
-            return []
-
-    def _fetch_medium_trending_safe(self, max_articles: int) -> List[Dict[str, Any]]:
-        """Thread-safe wrapper for Medium trending scraping."""
-        try:
-            logger.info("🔄 Fetching Medium trending in thread...")
-            articles = self.scrape_medium_trending(max_articles)
-            logger.info(f"✅ Medium trending: Found {len(articles)} articles")
-            return articles
-
-        except Exception as e:
-            logger.error(f"❌ Error scraping Medium trending: {e}")
             return []
 
     def scrape_inshorts_articles(
@@ -815,9 +710,6 @@ class ArticleScraper:
             feed_name = f"medium_pub_{i+1}"
             tasks.append(("rss", feed_name, pub_feed, 2))
 
-        # Add Medium trending as a special task
-        tasks.append(("trending", "medium_trending", None, 5))
-
         # Add InShorts API as the highest priority task with more categories
         inshorts_categories = ["all_news", "top_stories"]
         tasks.append(("inshorts", "inshorts_api", inshorts_categories, None))
@@ -838,10 +730,6 @@ class ArticleScraper:
                 if task_type == "rss":
                     future = executor.submit(
                         self._fetch_rss_feed_safe, (name, url_or_data, max_articles)
-                    )
-                elif task_type == "trending":
-                    future = executor.submit(
-                        self._fetch_medium_trending_safe, max_articles
                     )
                 elif task_type == "inshorts":
                     future = executor.submit(self._fetch_inshorts_safe, url_or_data)

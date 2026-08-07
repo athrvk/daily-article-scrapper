@@ -94,9 +94,6 @@ class Config:
         "wired": "https://www.wired.com/feed/rss",
         "the_verge": "https://www.theverge.com/rss/index.xml",
         "ars_technica": "https://arstechnica.com/feed/",
-        # NOTE: engadget blocks non-browser clients (HTTP 403) from
-        # datacenter IPs; kept in case it works from other networks
-        "engadget": "https://www.engadget.com/rss.xml",
         "cnet": "https://www.cnet.com/rss/news/",
         "the_register": "https://www.theregister.com/headlines.rss",
         "zdnet": "https://www.zdnet.com/news/rss.xml",
@@ -116,9 +113,6 @@ class Config:
         # Science & Health - Research and Medical News
         "nature_news": "https://www.nature.com/nature.rss",
         "scientific_american": "http://rss.sciam.com/ScientificAmerican-Global",
-        # NOTE: newscientist.com rejects non-browser clients (HTTP 406);
-        # kept in case it works from other networks
-        "new_scientist": "https://www.newscientist.com/feed/home/",
         "science_daily": "https://www.sciencedaily.com/rss/all.xml",
         "phys_org": "https://phys.org/rss-feed/",
         "live_science": "https://www.livescience.com/feeds/all",
@@ -146,9 +140,6 @@ class Config:
         "hackernews": "https://hnrss.org/frontpage",
         # Specialized Quality Publications
         "mit_tech_review": "https://www.technologyreview.com/feed/",
-        # NOTE: theatlantic.com serves this feed to browsers but returns 403
-        # to non-browser clients; kept in case it works from other networks
-        "atlantic": "https://www.theatlantic.com/feed/all/",
         # Eastern Europe, Russia & Belarus - Independent & Regional Sources
         "moscow_times": "https://www.themoscowtimes.com/rss/news",
         "meduza_en": "https://meduza.io/rss/en/all",
