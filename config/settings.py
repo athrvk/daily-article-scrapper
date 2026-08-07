@@ -29,7 +29,7 @@ class Config:
     AUTO_CLEANUP_ENABLED = os.getenv("AUTO_CLEANUP_ENABLED", "true").lower() == "true"
     CLEANUP_MONTHS_OLD = int(os.getenv("CLEANUP_MONTHS_OLD", "2"))
 
-    # User agent for requests - Updated to match Chrome 137 (consistent with sec-ch-ua header)
+    # User agent for requests - Chrome 120 (consistent with sec-ch-ua header)
     USER_AGENT = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

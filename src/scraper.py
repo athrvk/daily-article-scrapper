@@ -2,16 +2,18 @@
 
 import feedparser
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 import json
+import re
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import time
-import random
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import logging
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock
 from config.settings import Config
 
 logger = logging.getLogger(__name__)
@@ -20,12 +22,23 @@ logger = logging.getLogger(__name__)
 class ArticleScraper:
     """Main article scraper class."""
 
+    # Query parameters that only track referrals and break URL deduplication
+    TRACKING_PARAMS = {"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "source"}
+
     def __init__(self, config: Config = None):
         """Initialize the scraper with configuration."""
         self.config = config or Config()
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.config.USER_AGENT})
-        self.articles_lock = Lock()  # For thread-safe operations
+        retry = Retry(
+            total=self.config.MAX_RETRIES,
+            backoff_factor=0.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=("GET", "HEAD"),
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
 
     def _extract_image_from_rss_entry(self, entry) -> str:
         """Extract image URL from RSS entry with enhanced fallback mechanisms."""
@@ -294,8 +307,6 @@ class ArticleScraper:
                     style = element.get("style", "")
                     if "background-image" in style:
                         # Extract URL from background-image: url(...)
-                        import re
-
                         match = re.search(r'url\(["\']?(.*?)["\']?\)', style)
                         if match:
                             img_url = match.group(1)
@@ -325,7 +336,12 @@ class ArticleScraper:
         """Extract articles from RSS feed."""
         try:
             logger.info(f"Fetching RSS feed: {feed_url}")
-            feed = feedparser.parse(feed_url)
+            # Fetch with the session so requests' timeout, User-Agent, and
+            # retry policy apply — feedparser.parse(url) has no timeout and
+            # a hanging feed would block a worker thread indefinitely.
+            response = self.session.get(feed_url, timeout=10)
+            response.raise_for_status()
+            feed = feedparser.parse(response.content)
 
             if feed.bozo:
                 logger.warning(f"RSS feed has issues: {feed_url}")
@@ -335,40 +351,25 @@ class ArticleScraper:
                 # Extract image from RSS entry
                 image_url = self._extract_image_from_rss_entry(entry)
 
+                # RSS dates are usually RFC-822 strings; feedparser exposes a
+                # parsed struct_time, which we normalize to ISO so sorting and
+                # storage use one format.
+                published = entry.get("published", "")
+                parsed_date = entry.get("published_parsed") or entry.get(
+                    "updated_parsed"
+                )
+                if parsed_date:
+                    published = datetime(
+                        *parsed_date[:6], tzinfo=timezone.utc
+                    ).isoformat()
+
                 article = {
-                    "title": getattr(
-                        entry,
-                        "title",
-                        (
-                            entry.get("title", "No Title")
-                            if hasattr(entry, "get")
-                            else "No Title"
-                        ),
-                    ),
-                    "url": getattr(
-                        entry,
-                        "link",
-                        entry.get("link", "") if hasattr(entry, "get") else "",
-                    ),
-                    "published": getattr(
-                        entry,
-                        "published",
-                        entry.get("published", "") if hasattr(entry, "get") else "",
-                    ),
-                    "summary": getattr(
-                        entry,
-                        "summary",
-                        entry.get("summary", "") if hasattr(entry, "get") else "",
-                    ),
+                    "title": entry.get("title", "No Title"),
+                    "url": entry.get("link", ""),
+                    "published": published,
+                    "summary": entry.get("summary", ""),
                     "source": urlparse(feed_url).netloc,
-                    "tags": [
-                        tag.term
-                        for tag in getattr(
-                            entry,
-                            "tags",
-                            entry.get("tags", []) if hasattr(entry, "get") else [],
-                        )
-                    ],
+                    "tags": [tag.term for tag in entry.get("tags", [])],
                     "image": image_url,
                 }
                 articles.append(article)
@@ -426,7 +427,7 @@ class ArticleScraper:
                             {
                                 "title": title,
                                 "url": base_url,
-                                "published": datetime.now().isoformat(),
+                                "published": datetime.now(timezone.utc).isoformat(),
                                 "summary": "",
                                 "source": "medium.com",
                                 "tags": ["trending"],
@@ -451,9 +452,6 @@ class ArticleScraper:
             logger.info(f"🔄 Fetching {feed_name} in thread...")
             articles = self.get_rss_articles(feed_url, max_articles)
             logger.info(f"✅ {feed_name}: Found {len(articles)} articles")
-
-            # Add a small random delay to avoid overwhelming servers
-            time.sleep(random.uniform(0.5, 1.5))
             return articles
 
         except Exception as e:
@@ -580,7 +578,7 @@ class ArticleScraper:
 
             # Validate required fields
             if not article["title"] or not article["url"]:
-                logger.warning(f"Invalid InShorts article: missing title or URL")
+                logger.warning("Invalid InShorts article: missing title or URL")
                 return None
 
             # Convert timestamp - InShorts uses Unix timestamp in milliseconds
@@ -602,9 +600,9 @@ class ArticleScraper:
                         article["published"] = dt.isoformat()
                 except Exception as e:
                     logger.debug(f"Could not parse InShorts timestamp: {e}")
-                    article["published"] = datetime.now().isoformat()
+                    article["published"] = datetime.now(timezone.utc).isoformat()
             else:
-                article["published"] = datetime.now().isoformat()
+                article["published"] = datetime.now(timezone.utc).isoformat()
 
             return article
 
@@ -858,8 +856,7 @@ class ArticleScraper:
                 try:
                     articles = future.result()
                     if articles:
-                        with self.articles_lock:
-                            all_articles.extend(articles)
+                        all_articles.extend(articles)
                         logger.info(
                             f"✅ Completed {name}: Added {len(articles)} articles"
                         )
@@ -890,6 +887,20 @@ class ArticleScraper:
 
         return enhanced_articles
 
+    def _canonicalize_url(self, url: str) -> str:
+        """Strip tracking parameters and fragments so the same article seen
+        via different feeds deduplicates to a single URL."""
+        try:
+            parsed = urlparse(url)
+            query = [
+                (key, value)
+                for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+                if not key.startswith("utm_") and key not in self.TRACKING_PARAMS
+            ]
+            return urlunparse(parsed._replace(query=urlencode(query), fragment=""))
+        except ValueError:
+            return url
+
     def _remove_duplicates(
         self, articles: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -904,9 +915,10 @@ class ArticleScraper:
                 invalid_count += 1
                 continue
 
-            url = article.get("url", "")
+            url = self._canonicalize_url(article.get("url", ""))
             if url and url not in seen_urls:
                 seen_urls.add(url)
+                article["url"] = url
                 unique_articles.append(article)
 
         duplicates_removed = len(articles) - len(unique_articles) - invalid_count
@@ -918,29 +930,24 @@ class ArticleScraper:
     def _sort_articles(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Sort articles by published date (newest first)."""
 
+        oldest = datetime.min.replace(tzinfo=timezone.utc)
+
         def get_sort_key(article):
             published = article.get("published", "")
-            if published:
+            if not published:
+                return oldest
+            try:
+                dt = datetime.fromisoformat(published.replace("Z", "+00:00"))
+            except ValueError:
                 try:
-                    # Try to parse the date and normalize timezone
-                    if "Z" in published:
-                        # Replace Z with +00:00 for UTC
-                        dt = datetime.fromisoformat(published.replace("Z", "+00:00"))
-                    elif "+" in published or published.endswith(("GMT", "UTC")):
-                        # Already has timezone info
-                        dt = datetime.fromisoformat(
-                            published.replace("GMT", "+00:00").replace("UTC", "+00:00")
-                        )
-                    else:
-                        # No timezone info, assume UTC
-                        dt = datetime.fromisoformat(published)
-                        if dt.tzinfo is None:
-                            dt = dt.replace(tzinfo=timezone.utc)
-                    return dt
-                except Exception as e:
-                    logger.debug(f"Failed to parse date '{published}': {e}")
-                    return datetime.min.replace(tzinfo=timezone.utc)
-            return datetime.min.replace(tzinfo=timezone.utc)
+                    # RSS feeds use RFC-822 dates ("Thu, 07 Aug 2025 12:00:00 GMT")
+                    dt = parsedate_to_datetime(published)
+                except (TypeError, ValueError):
+                    logger.debug(f"Failed to parse date '{published}'")
+                    return oldest
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
 
         return sorted(articles, key=get_sort_key, reverse=True)
 

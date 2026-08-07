@@ -27,7 +27,8 @@ line_length = 88
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q --strict-markers"
+# Live-network tests are opt-in: run them with `pytest -m live`
+addopts = "-ra -q --strict-markers -m 'not live'"
 testpaths = [
     "tests",
 ]

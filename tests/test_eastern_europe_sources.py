@@ -1,12 +1,9 @@
 """Tests for Eastern Europe, Russia & Belarus RSS sources."""
 
 import pytest
-import feedparser
-import requests
 from unittest.mock import patch, Mock
 from config.settings import Config
 from src.scraper import ArticleScraper
-
 
 EASTERN_EUROPE_FEEDS = [
     "moscow_times",
@@ -36,7 +33,9 @@ class TestEasternEuropeSourcesConfig:
 
     def test_no_duplicate_urls(self):
         ee_urls = [Config.RSS_FEEDS[k] for k in EASTERN_EUROPE_FEEDS]
-        assert len(ee_urls) == len(set(ee_urls)), "Duplicate URLs found in Eastern Europe feeds"
+        assert len(ee_urls) == len(
+            set(ee_urls)
+        ), "Duplicate URLs found in Eastern Europe feeds"
 
     def test_no_trailing_whitespace_in_urls(self):
         for key in EASTERN_EUROPE_FEEDS:
@@ -51,8 +50,10 @@ class TestEasternEuropeRSSParsing:
     def scraper(self, mock_config):
         return ArticleScraper(config=mock_config)
 
+    @patch("src.scraper.requests.Session.get")
     @patch("src.scraper.feedparser.parse")
-    def test_scraper_parses_eastern_europe_feed(self, mock_parse, scraper):
+    def test_scraper_parses_eastern_europe_feed(self, mock_parse, mock_get, scraper):
+        mock_get.return_value = Mock(content=b"<rss/>")
         mock_entry = Mock()
         mock_entry.title = "Russia Signs New Economic Agreement"
         mock_entry.link = "https://www.themoscowtimes.com/2026/04/27/test-article"
@@ -85,8 +86,10 @@ class TestEasternEuropeRSSParsing:
         assert articles[0]["title"] == "Russia Signs New Economic Agreement"
         assert "themoscowtimes.com" in articles[0]["url"]
 
+    @patch("src.scraper.requests.Session.get")
     @patch("src.scraper.feedparser.parse")
-    def test_scraper_parses_meduza_feed(self, mock_parse, scraper):
+    def test_scraper_parses_meduza_feed(self, mock_parse, mock_get, scraper):
+        mock_get.return_value = Mock(content=b"<rss/>")
         mock_entry = Mock()
         mock_entry.title = "Meduza: Independent Coverage of Eastern Europe"
         mock_entry.link = "https://meduza.io/en/news/2026/04/27/test"
@@ -118,14 +121,20 @@ class TestEasternEuropeRSSParsing:
         assert len(articles) == 1
         assert "meduza.io" in articles[0]["url"]
 
+    @patch("src.scraper.requests.Session.get")
     @patch("src.scraper.feedparser.parse")
-    def test_eastern_europe_articles_pass_validation(self, mock_parse, scraper):
+    def test_eastern_europe_articles_pass_validation(
+        self, mock_parse, mock_get, scraper
+    ):
         """Articles from EE sources should pass the is_valid_article filter."""
+        mock_get.return_value = Mock(content=b"<rss/>")
         mock_entry = Mock()
         mock_entry.title = "Poland Announces New Infrastructure Investment Plan"
         mock_entry.link = "https://notesfrompoland.com/2026/04/27/infrastructure-plan"
         mock_entry.published = "Mon, 27 Apr 2026 08:00:00 +0000"
-        mock_entry.summary = "The Polish government has announced a major new infrastructure investment."
+        mock_entry.summary = (
+            "The Polish government has announced a major new infrastructure investment."
+        )
         mock_entry.get.side_effect = lambda key, default="": {
             "title": mock_entry.title,
             "link": mock_entry.link,
@@ -165,8 +174,14 @@ class TestEasternEuropeSourcesLive:
     def test_feed_reachable_and_returns_articles(self, real_scraper, feed_key):
         url = Config.RSS_FEEDS[feed_key]
         articles = real_scraper.get_rss_articles(url)
-        assert isinstance(articles, list), f"{feed_key}: expected list, got {type(articles)}"
-        assert len(articles) > 0, f"{feed_key} ({url}) returned no articles — feed may be down or blocked"
+        assert isinstance(
+            articles, list
+        ), f"{feed_key}: expected list, got {type(articles)}"
+        assert (
+            len(articles) > 0
+        ), f"{feed_key} ({url}) returned no articles — feed may be down or blocked"
         for article in articles[:3]:
             assert article.get("title"), f"{feed_key}: article missing title"
-            assert article.get("url", "").startswith("http"), f"{feed_key}: article missing valid URL"
+            assert article.get("url", "").startswith(
+                "http"
+            ), f"{feed_key}: article missing valid URL"
