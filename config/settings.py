@@ -72,23 +72,26 @@ class Config:
         "guardian_world": "https://www.theguardian.com/world/rss",
         "guardian_technology": "https://www.theguardian.com/technology/rss",
         "al_jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
-        "reuters_world": "https://www.reutersagency.com/feed/?taxonomy=best-topics&post_type=best",
         # Technology & Innovation - Top Tech Publications
         "techcrunch": "https://techcrunch.com/feed/",
         "wired": "https://www.wired.com/feed/rss",
         "the_verge": "https://www.theverge.com/rss/index.xml",
-        "ars_technica": "http://feeds.arstechnica.com/arstechnica/index",
+        "ars_technica": "https://arstechnica.com/feed/",
+        # NOTE: engadget blocks non-browser clients (HTTP 403) from
+        # datacenter IPs; kept in case it works from other networks
         "engadget": "https://www.engadget.com/rss.xml",
         "cnet": "https://www.cnet.com/rss/news/",
         # Business & Economics - Financial News
         "bloomberg": "https://feeds.bloomberg.com/markets/news.rss",
         "financial_times": "https://www.ft.com/rss/home",
-        "forbes": "https://www.forbes.com/real-time/feed2/",
-        "economist": "https://www.economist.com/rss",
+        "forbes": "https://www.forbes.com/innovation/feed2/",
+        "economist": "https://www.economist.com/latest/rss.xml",
         "business_insider": "https://www.businessinsider.com/rss",
         # Science & Health - Research and Medical News
         "nature_news": "https://www.nature.com/nature.rss",
         "scientific_american": "http://rss.sciam.com/ScientificAmerican-Global",
+        # NOTE: newscientist.com rejects non-browser clients (HTTP 406);
+        # kept in case it works from other networks
         "new_scientist": "https://www.newscientist.com/feed/home/",
         "science_daily": "https://www.sciencedaily.com/rss/all.xml",
         # Regional Perspectives - Diverse Global Sources
@@ -103,19 +106,20 @@ class Config:
         "hackernews": "https://hnrss.org/frontpage",
         # Specialized Quality Publications
         "mit_tech_review": "https://www.technologyreview.com/feed/",
+        # NOTE: theatlantic.com serves this feed to browsers but returns 403
+        # to non-browser clients; kept in case it works from other networks
         "atlantic": "https://www.theatlantic.com/feed/all/",
-        "national_geographic": "https://www.nationalgeographic.com/pages/topic/latest-stories/_jcr_content.feed",
         # Eastern Europe, Russia & Belarus - Independent & Regional Sources
         "moscow_times": "https://www.themoscowtimes.com/rss/news",
         "meduza_en": "https://meduza.io/rss/en/all",
-        "kyiv_independent": "https://kyivindependent.com/feed/",
+        "kyiv_independent": "https://kyivindependent.com/news-archive/rss/",
         "politico_europe": "https://www.politico.eu/feed/",
         "notes_from_poland": "https://notesfrompoland.com/feed/",
         "emerging_europe": "https://emerging-europe.com/feed/",
         "balkan_insight": "https://balkaninsight.com/feed/",
-        "intellinews": "https://www.intellinews.com/rss/",
+        "intellinews": "https://www.intellinews.com/feed",
         "euromaidanpress": "https://euromaidanpress.com/feed/",
-        "novaya_gazeta_europe": "https://novayagazeta.eu/feed/",
+        "novaya_gazeta_europe": "https://novayagazeta.eu/feed/rss/en",
     }
 
     # Medium publication feeds - Diverse topics and global perspectives (Working feeds only)
@@ -132,8 +136,8 @@ class Config:
         # Personal Development
         "https://medium.com/feed/personal-growth",
         "https://medium.com/feed/thrive-global",
-        # Design & UX
-        "https://medium.com/feed/ux-collective",
+        # Design & UX (UX Collective publishes via its custom domain)
+        "https://uxdesign.cc/feed",
         # Science & Future
         "https://medium.com/feed/predict",
     ]
