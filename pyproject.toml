@@ -26,7 +26,10 @@ ensure_newline_before_comments = true
 line_length = 88
 
 [tool.pytest.ini_options]
-minversion = "6.0"
+minversion = "7.0"
+# Put the repo root on sys.path so `src` and `config` import regardless of
+# how pytest is invoked (`pytest` vs `python -m pytest`)
+pythonpath = ["."]
 # Live-network tests are opt-in: run them with `pytest -m live`
 addopts = "-ra -q --strict-markers -m 'not live'"
 testpaths = [
