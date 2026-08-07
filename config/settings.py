@@ -35,14 +35,15 @@ class Config:
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
 
-    # InShorts API configuration - Prioritized for better image coverage
+    # InShorts API configuration - good image coverage, but content is
+    # India-centric, so quotas are kept small relative to the RSS sources
     INSHORTS_API_BASE_URL = "https://inshorts.com/api/en"
     INSHORTS_CATEGORIES = {
-        "all_news": {"max_limit": 35, "priority": 1},
-        "top_stories": {"max_limit": 20, "priority": 2},
-        "trending": {"max_limit": 15, "priority": 3},
-        "business": {"max_limit": 10, "priority": 4},
-        "technology": {"max_limit": 10, "priority": 5},
+        "all_news": {"max_limit": 10, "priority": 1},
+        "top_stories": {"max_limit": 5, "priority": 2},
+        "trending": {"max_limit": 5, "priority": 3},
+        "business": {"max_limit": 5, "priority": 4},
+        "technology": {"max_limit": 5, "priority": 5},
     }
 
     # Headers for InShorts API to avoid bot detection
@@ -77,6 +78,17 @@ class Config:
         "euronews": "https://www.euronews.com/rss",
         "un_news": "https://news.un.org/feed/subscribe/en/news/all/rss.xml",
         "time": "https://time.com/feed/",
+        # US National News - Major Outlets
+        "nytimes": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+        "washington_post": "https://feeds.washingtonpost.com/rss/national",
+        "nbc_news": "https://feeds.nbcnews.com/nbcnews/public/news",
+        "cbs_news": "https://www.cbsnews.com/latest/rss/main",
+        "abc_news_us": "https://abcnews.go.com/abcnews/topstories",
+        "fox_news": "https://moxie.foxnews.com/google-publisher/latest.xml",
+        "politico": "https://rss.politico.com/politics-news.xml",
+        "axios": "https://api.axios.com/feed/",
+        "the_hill": "https://thehill.com/news/feed/",
+        "la_times": "https://www.latimes.com/rss2.0.xml",
         # Technology & Innovation - Top Tech Publications
         "techcrunch": "https://techcrunch.com/feed/",
         "wired": "https://www.wired.com/feed/rss",
@@ -148,6 +160,16 @@ class Config:
         "intellinews": "https://www.intellinews.com/feed",
         "euromaidanpress": "https://euromaidanpress.com/feed/",
         "novaya_gazeta_europe": "https://novayagazeta.eu/feed/rss/en",
+        # Russia - Independent outlets (Russian-language)
+        "meduza_ru": "https://meduza.io/rss/all",
+        "novaya_gazeta_ru": "https://novayagazeta.eu/feed/rss",
+        "the_bell_en": "https://en.thebell.io/feed",
+        "the_bell_ru": "https://thebell.io/feed",
+        # Russia - Mainstream dailies and wires (Russian-language)
+        "kommersant": "https://www.kommersant.ru/RSS/news.xml",
+        "rbc": "https://rssexport.rbc.ru/rbcnews/news/30/full.rss",
+        "vedomosti": "https://www.vedomosti.ru/rss/news",
+        "interfax_ru": "https://www.interfax.ru/rss.asp",
     }
 
     # Medium publication feeds - Diverse topics and global perspectives (Working feeds only)
