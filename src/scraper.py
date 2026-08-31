@@ -334,6 +334,14 @@ class ArticleScraper:
                         *parsed_date[:6], tzinfo=timezone.utc
                     ).isoformat()
 
+                # feedparser normalizes both Atom <author><name> and RSS
+                # dc:creator into author_detail.name when the feed provides
+                # structured author data; entry.author is the raw string
+                # form (sometimes just a name, sometimes "email (Name)").
+                # Prefer the structured name, fall back to the raw string.
+                author_detail = entry.get("author_detail", {}) or {}
+                author = author_detail.get("name", "") or entry.get("author", "")
+
                 article = {
                     "title": entry.get("title", "No Title"),
                     "url": entry.get("link", ""),
@@ -342,6 +350,7 @@ class ArticleScraper:
                     "source": urlparse(feed_url).netloc,
                     "tags": [tag.term for tag in entry.get("tags", [])],
                     "image": image_url,
+                    "author": author,
                 }
                 articles.append(article)
 
@@ -468,7 +477,11 @@ class ArticleScraper:
                 "tags": [category],
                 "image": news.get("image_url", ""),
                 "inshorts_id": news.get("hash_id", ""),
+                # original_source kept for backward compatibility; author
+                # mirrors it so callers can read one field regardless of
+                # whether the article came from RSS or InShorts.
                 "original_source": news.get("author_name", ""),
+                "author": news.get("author_name", ""),
             }
 
             # Validate required fields

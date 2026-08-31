@@ -151,6 +151,76 @@ class TestArticleScraper:
         assert articles[0]["title"] == "Test Article"
         assert articles[0]["url"] == "https://example.com/test"
         assert "image" in articles[0]  # Ensure image field is present
+        assert articles[0]["author"] == ""  # No author data in this mock
+
+    @patch("src.scraper.requests.Session.get")
+    @patch("src.scraper.feedparser.parse")
+    def test_get_rss_articles_author_from_author_detail(
+        self, mock_parse, mock_get, scraper
+    ):
+        """Structured author_detail.name (Atom <author>, dc:creator) wins."""
+        mock_get.return_value = Mock(content=b"<rss/>")
+        mock_entry = Mock()
+        mock_entry.tags = []
+        mock_entry.media_content = []
+        mock_entry.media_thumbnail = []
+        mock_entry.enclosures = []
+        mock_entry.links = []
+        mock_entry.content = []
+        mock_entry.description = ""
+        for attr in ["image", "featured_image", "thumbnail", "img", "picture"]:
+            setattr(mock_entry, attr, "")
+        mock_entry.get.side_effect = lambda key, default="": {
+            "title": "Byline Article",
+            "link": "https://example.com/byline",
+            "published": "2025-01-01",
+            "summary": "Test summary",
+            "author_detail": {"name": "Jane Doe"},
+            "author": "jane@example.com (Jane Doe)",
+        }.get(key, default)
+
+        mock_feed = Mock()
+        mock_feed.entries = [mock_entry]
+        mock_feed.bozo = False
+        mock_parse.return_value = mock_feed
+
+        articles = scraper.get_rss_articles("https://example.com/feed")
+
+        assert articles[0]["author"] == "Jane Doe"
+
+    @patch("src.scraper.requests.Session.get")
+    @patch("src.scraper.feedparser.parse")
+    def test_get_rss_articles_author_falls_back_to_raw_string(
+        self, mock_parse, mock_get, scraper
+    ):
+        """Falls back to the raw `author` string when no author_detail exists."""
+        mock_get.return_value = Mock(content=b"<rss/>")
+        mock_entry = Mock()
+        mock_entry.tags = []
+        mock_entry.media_content = []
+        mock_entry.media_thumbnail = []
+        mock_entry.enclosures = []
+        mock_entry.links = []
+        mock_entry.content = []
+        mock_entry.description = ""
+        for attr in ["image", "featured_image", "thumbnail", "img", "picture"]:
+            setattr(mock_entry, attr, "")
+        mock_entry.get.side_effect = lambda key, default="": {
+            "title": "No Structured Author",
+            "link": "https://example.com/no-author-detail",
+            "published": "2025-01-01",
+            "summary": "Test summary",
+            "author": "John Smith",
+        }.get(key, default)
+
+        mock_feed = Mock()
+        mock_feed.entries = [mock_entry]
+        mock_feed.bozo = False
+        mock_parse.return_value = mock_feed
+
+        articles = scraper.get_rss_articles("https://example.com/feed")
+
+        assert articles[0]["author"] == "John Smith"
 
     def test_extract_image_from_html(self, scraper):
         """Test image extraction from HTML content."""
@@ -299,6 +369,7 @@ class TestArticleScraper:
         assert article["source"] == "inshorts.com"
         assert article["inshorts_id"] == "test-hash"
         assert article["original_source"] == "Test Source"
+        assert article["author"] == "Test Source"
         assert "top_stories" in article["tags"]
 
     def test_parse_inshorts_article_missing_fields(self, scraper):
