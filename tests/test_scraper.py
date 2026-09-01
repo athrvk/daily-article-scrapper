@@ -267,13 +267,18 @@ class TestArticleScraper:
         for url in share_card_urls:
             assert scraper._is_valid_image_url(url) is False
 
-        assert scraper._is_valid_image_url("https://example.com/photos/real-photo.jpg") is True
+        assert (
+            scraper._is_valid_image_url("https://example.com/photos/real-photo.jpg")
+            is True
+        )
 
     def test_extract_image_from_rss_entry_skips_share_card_enclosure(self, scraper):
         """A share-card enclosure should be rejected so real signals aren't shadowed."""
         mock_enclosure = Mock()
         mock_enclosure.type = "image/png"
-        mock_enclosure.href = "https://meduza.io/imgly/share/123/en/news/2026/09/01/article"
+        mock_enclosure.href = (
+            "https://meduza.io/imgly/share/123/en/news/2026/09/01/article"
+        )
 
         mock_entry = Mock()
         mock_entry.media_content = []
