@@ -24,6 +24,22 @@ class ArticleScraper:
     # Query parameters that only track referrals and break URL deduplication
     TRACKING_PARAMS = {"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "source"}
 
+    # Path/host fragments used by dynamically-generated social share cards
+    # (headline text rendered over a plain background), as opposed to real
+    # editorial photos. These get published as the RSS enclosure and as
+    # og:image/twitter:image alike (e.g. Meduza's meduza.io/imgly/share/...),
+    # so they must be rejected wherever image URLs are validated.
+    SHARE_CARD_URL_PATTERNS = (
+        "/imgly/share/",
+        "/api/og",
+        "og-image",
+        "ogimage",
+        "opengraph-image",
+        "social-image",
+        "share-image",
+        "sharingimage",
+    )
+
     def __init__(self, config: Config = None):
         """Initialize the scraper with configuration."""
         self.config = config or Config()
@@ -177,6 +193,11 @@ class ArticleScraper:
 
         # Skip obviously invalid URLs (but allow example.com for testing)
         if any(invalid in url.lower() for invalid in ["localhost", "127.0.0.1"]):
+            return False
+
+        # Skip generated social share cards (headline-as-text-image), which
+        # sources publish as their enclosure/og:image in place of a real photo
+        if any(pattern in url.lower() for pattern in self.SHARE_CARD_URL_PATTERNS):
             return False
 
         # Skip too short URLs
